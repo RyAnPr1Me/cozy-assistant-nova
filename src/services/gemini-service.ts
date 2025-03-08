@@ -2,6 +2,7 @@
 import { toast } from "sonner";
 import { getWeather } from "./weather-service";
 import { searchSpotify, getRecommendations } from "./spotify-service";
+import { getNews } from "./news-service";
 
 // Get Gemini API Key from localStorage or use the default one
 const getApiKey = () => {
@@ -24,7 +25,7 @@ interface GeminiResponse {
 
 export interface UserQuery {
   query: string;
-  source?: "calendar" | "bookmarks" | "weather" | "spotify" | "general";
+  source?: "calendar" | "bookmarks" | "weather" | "spotify" | "news" | "general";
   context?: any;
 }
 
@@ -42,11 +43,16 @@ export async function queryGemini({ query, source = "general", context }: UserQu
         location = locationMatch[1].trim();
       }
       
-      // Get weather data
-      const weatherData = await getWeather(location);
-      if (weatherData) {
-        source = "weather";
-        context = weatherData;
+      try {
+        // Get weather data
+        const weatherData = await getWeather(location);
+        if (weatherData) {
+          source = "weather";
+          context = weatherData;
+        }
+      } catch (weatherError) {
+        console.error("Error getting weather data:", weatherError);
+        // Continue with query without weather data
       }
     }
     
@@ -62,23 +68,67 @@ export async function queryGemini({ query, source = "general", context }: UserQu
       if (searchMatch && searchMatch[1]) {
         const searchTerm = searchMatch[1].trim();
         
-        // Search Spotify
-        const spotifyResults = await searchSpotify(searchTerm);
-        if (spotifyResults) {
-          source = "spotify";
-          context = spotifyResults;
-          
-          // Get recommendations if asked for
-          if (query.toLowerCase().includes("recommend") || query.toLowerCase().includes("similar")) {
-            const seedTracks = spotifyResults.tracks.slice(0, 2).map(track => track.id);
-            if (seedTracks.length > 0) {
-              const recommendations = await getRecommendations(seedTracks);
-              if (recommendations) {
-                context.recommendations = recommendations;
+        try {
+          // Search Spotify
+          const spotifyResults = await searchSpotify(searchTerm);
+          if (spotifyResults) {
+            source = "spotify";
+            context = spotifyResults;
+            
+            // Get recommendations if asked for
+            if (query.toLowerCase().includes("recommend") || query.toLowerCase().includes("similar")) {
+              const seedTracks = spotifyResults.tracks.slice(0, 2).map(track => track.id);
+              if (seedTracks.length > 0) {
+                const recommendations = await getRecommendations(seedTracks);
+                if (recommendations) {
+                  context.recommendations = recommendations;
+                }
               }
             }
           }
+        } catch (spotifyError) {
+          console.error("Error getting Spotify data:", spotifyError);
+          // Continue with query without Spotify data
         }
+      }
+    }
+    
+    // Check for news-related queries
+    if (query.toLowerCase().includes("news") || 
+        query.toLowerCase().includes("article") || 
+        query.toLowerCase().includes("report") ||
+        query.toLowerCase().includes("update") ||
+        query.toLowerCase().includes("headline")) {
+      
+      try {
+        // Extract search term from query
+        let searchTerm = "";
+        const newsMatch = query.match(/(?:news|articles?|headlines?) (?:about|on|regarding) (.*?)(?:\s+in\s+|$)/i);
+        if (newsMatch && newsMatch[1]) {
+          searchTerm = newsMatch[1].trim();
+        } else {
+          // If no specific term, use the most relevant keyword from the query
+          const keywords = query.split(" ")
+            .filter(word => word.length > 3 && 
+              !["news", "article", "headline", "latest", "recent", "tell", "about", "what"].includes(word.toLowerCase())
+            );
+          if (keywords.length > 0) {
+            searchTerm = keywords[0];
+          } else {
+            searchTerm = "latest"; // Default search term
+          }
+        }
+        
+        if (searchTerm) {
+          const newsData = await getNews(searchTerm);
+          if (newsData && newsData.results.length > 0) {
+            source = "news";
+            context = newsData;
+          }
+        }
+      } catch (newsError) {
+        console.error("Error getting news data:", newsError);
+        // Continue with query without news data
       }
     }
 
@@ -93,6 +143,8 @@ export async function queryGemini({ query, source = "general", context }: UserQu
       prompt = `[CONTEXT: The user is asking about weather. Weather data: ${JSON.stringify(context)}]\n\nUser query: ${query}`;
     } else if (source === "spotify") {
       prompt = `[CONTEXT: The user is asking about music. Spotify results: ${JSON.stringify(context)}]\n\nUser query: ${query}`;
+    } else if (source === "news") {
+      prompt = `[CONTEXT: The user is asking about news. News results: ${JSON.stringify(context)}]\n\nUser query: ${query}. Please summarize the main points from these news articles and provide insights. Include sources when relevant.`;
     }
 
     const apiKey = getApiKey();
@@ -122,9 +174,19 @@ export async function queryGemini({ query, source = "general", context }: UserQu
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Gemini API error:", errorText);
-      throw new Error(`API request failed: ${errorText}`);
+      const errorData = await response.json().catch(() => null);
+      const errorText = await response.text().catch(() => "Unknown error");
+      console.error("Gemini API error:", errorData || errorText);
+      
+      if (response.status === 429) {
+        throw new Error("API rate limit exceeded. Please try again later.");
+      }
+      
+      if (response.status === 401 || response.status === 403) {
+        throw new Error("API key invalid or expired. Please update your API key in settings.");
+      }
+      
+      throw new Error(`API request failed (${response.status}): ${errorData?.error?.message || errorText}`);
     }
 
     const data: GeminiResponse = await response.json();
@@ -136,7 +198,18 @@ export async function queryGemini({ query, source = "general", context }: UserQu
     }
   } catch (error) {
     console.error("Error querying Gemini:", error);
-    toast.error("Failed to get a response from the AI assistant");
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    
+    toast.error(`AI assistant error: ${errorMessage}`);
+    
+    if (errorMessage.includes("API key invalid")) {
+      return "I'm having trouble accessing my AI capabilities. Please check your API key in the settings page.";
+    }
+    
+    if (errorMessage.includes("rate limit")) {
+      return "I've reached my usage limit. Please try again in a few minutes.";
+    }
+    
     return "I'm sorry, I encountered an error processing your request. Please try again later.";
   }
 }

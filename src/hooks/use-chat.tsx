@@ -10,23 +10,38 @@ export interface Message {
   type: "user" | "assistant";
   content: string;
   timestamp: number;
+  error?: boolean;
 }
 
 export function useChat() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
 
-  const sendMessage = async (userInput: string) => {
+  const retryLastMessage = async () => {
+    // Find the last user message
+    const lastUserMessageIndex = [...messages].reverse().findIndex(m => m.type === "user");
+    if (lastUserMessageIndex === -1) return;
+    
+    const lastUserMessage = messages[messages.length - 1 - lastUserMessageIndex];
+    await sendMessage(lastUserMessage.content, true);
+  };
+
+  const sendMessage = async (userInput: string, isRetry = false) => {
     if (!userInput.trim()) return;
     
-    const newUserMessage: Message = {
-      id: crypto.randomUUID(),
-      type: "user",
-      content: userInput,
-      timestamp: Date.now(),
-    };
+    // If this is a retry, don't add a new user message
+    if (!isRetry) {
+      const newUserMessage: Message = {
+        id: crypto.randomUUID(),
+        type: "user",
+        content: userInput,
+        timestamp: Date.now(),
+      };
+      
+      setMessages(prev => [...prev, newUserMessage]);
+    }
     
-    setMessages(prev => [...prev, newUserMessage]);
     setIsLoading(true);
     
     try {
@@ -58,10 +73,51 @@ export function useChat() {
         timestamp: Date.now(),
       };
       
-      setMessages(prev => [...prev, assistantMessage]);
+      // If it's a retry, replace the last assistant message
+      if (isRetry) {
+        setMessages(prev => {
+          const newMessages = [...prev];
+          const lastAssistantIndex = newMessages.findIndex(m => m.type === "assistant");
+          if (lastAssistantIndex !== -1) {
+            newMessages[lastAssistantIndex] = assistantMessage;
+          } else {
+            newMessages.push(assistantMessage);
+          }
+          return newMessages;
+        });
+      } else {
+        setMessages(prev => [...prev, assistantMessage]);
+      }
+      
+      // Reset retry count on successful message
+      setRetryCount(0);
     } catch (error) {
       console.error("Error sending message:", error);
-      toast.error("Failed to get a response from the assistant");
+      
+      // If error message contains "retry", add an error message and option to retry
+      const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
+      
+      // Only increment retry count if this wasn't already a retry
+      if (!isRetry) {
+        setRetryCount(prev => prev + 1);
+      }
+      
+      // If we've tried too many times, show a more detailed error
+      if (retryCount >= 2) {
+        toast.error("Multiple failures encountered. Please check your API keys in Settings.");
+      } else {
+        toast.error("Failed to get a response from the assistant");
+      }
+      
+      const assistantMessage: Message = {
+        id: crypto.randomUUID(),
+        type: "assistant",
+        content: "I'm sorry, I encountered an error processing your request. Please try again later.",
+        timestamp: Date.now(),
+        error: true
+      };
+      
+      setMessages(prev => [...prev, assistantMessage]);
     } finally {
       setIsLoading(false);
     }
@@ -70,6 +126,7 @@ export function useChat() {
   return {
     messages,
     isLoading,
-    sendMessage
+    sendMessage,
+    retryLastMessage
   };
 }
