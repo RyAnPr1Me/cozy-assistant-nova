@@ -3,9 +3,13 @@ import { toast } from "sonner";
 import { getWeather } from "./weather-service";
 import { searchSpotify, getRecommendations } from "./spotify-service";
 
-// Gemini API Key
-const API_KEY = "AIzaSyD36BugamnLHIhQRLv3V4HXu_hg4B9-WFQ";
-const API_URL = "https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent";
+// Get Gemini API Key from localStorage or use the default one
+const getApiKey = () => {
+  return localStorage.getItem("gemini-assistant-api-key") || "AIzaSyD36BugamnLHIhQRLv3V4HXu_hg4B9-WFQ";
+};
+
+// Updated API URL to use the latest API version and endpoint
+const API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent";
 
 interface GeminiResponse {
   candidates: Array<{
@@ -91,7 +95,9 @@ export async function queryGemini({ query, source = "general", context }: UserQu
       prompt = `[CONTEXT: The user is asking about music. Spotify results: ${JSON.stringify(context)}]\n\nUser query: ${query}`;
     }
 
-    const response = await fetch(`${API_URL}?key=${API_KEY}`, {
+    const apiKey = getApiKey();
+    
+    const response = await fetch(`${API_URL}?key=${apiKey}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -106,11 +112,18 @@ export async function queryGemini({ query, source = "general", context }: UserQu
             ],
           },
         ],
+        generationConfig: {
+          temperature: 0.7,
+          topK: 40,
+          topP: 0.95,
+          maxOutputTokens: 2048,
+        },
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
+      console.error("Gemini API error:", errorText);
       throw new Error(`API request failed: ${errorText}`);
     }
 

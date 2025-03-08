@@ -114,6 +114,16 @@ const SettingsPage = () => {
               <p className="text-xs text-muted-foreground">
                 Your Gemini API key is stored locally and never sent to our servers
               </p>
+              <p className="text-xs text-muted-foreground">
+                <a 
+                  href="https://ai.google.dev/tutorials/setup" 
+                  target="_blank" 
+                  rel="noreferrer" 
+                  className="text-primary hover:underline"
+                >
+                  Get an API key from Google AI Studio
+                </a>
+              </p>
             </div>
           </CardGlassContent>
           <CardGlassFooter>
