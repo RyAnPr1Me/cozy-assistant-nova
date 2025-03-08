@@ -27,27 +27,29 @@ export function ChatInterface() {
   // Initialize speech recognition if available
   useEffect(() => {
     if ("SpeechRecognition" in window || "webkitSpeechRecognition" in window) {
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      recognition.current = new SpeechRecognition();
-      recognition.current.continuous = true;
-      recognition.current.interimResults = true;
-      
-      recognition.current.onresult = (event) => {
-        const transcript = Array.from(event.results)
-          .map(result => result[0].transcript)
-          .join("");
-          
-        setUserInput(transcript);
-      };
-      
-      recognition.current.onerror = (event) => {
-        console.error("Speech recognition error", event.error);
-        setIsListening(false);
-      };
-      
-      recognition.current.onend = () => {
-        setIsListening(false);
-      };
+      const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (SpeechRecognitionAPI) {
+        recognition.current = new SpeechRecognitionAPI();
+        recognition.current.continuous = true;
+        recognition.current.interimResults = true;
+        
+        recognition.current.onresult = (event) => {
+          const transcript = Array.from(event.results)
+            .map(result => result[0].transcript)
+            .join("");
+            
+          setUserInput(transcript);
+        };
+        
+        recognition.current.onerror = (event) => {
+          console.error("Speech recognition error", event);
+          setIsListening(false);
+        };
+        
+        recognition.current.onend = () => {
+          setIsListening(false);
+        };
+      }
     }
   }, []);
 
