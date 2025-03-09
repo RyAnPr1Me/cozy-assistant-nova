@@ -17,14 +17,28 @@ export interface PlayAIResponse {
   };
 }
 
+interface ContextData {
+  type: "weather" | "news" | "stocks" | "search" | "calendar" | "bookmarks";
+  data: any;
+}
+
 export async function sendMessageToPlayAI(
   message: string,
-  conversationHistory: PlayAIMessage[] = []
+  conversationHistory: PlayAIMessage[] = [],
+  contextData?: ContextData
 ): Promise<string> {
   try {
+    // Build system message with context if available
+    let systemMessage = "You are a helpful, friendly assistant capable of answering questions about various topics.";
+    
+    if (contextData) {
+      systemMessage += ` Here is relevant ${contextData.type} data that might help with your response: ${JSON.stringify(contextData.data)}`;
+    }
+    
     const messages = [
+      { role: "system" as const, content: systemMessage },
       ...conversationHistory,
-      { role: "user", content: message }
+      { role: "user" as const, content: message }
     ];
 
     const response = await fetch(PLAYAI_API_URL, {

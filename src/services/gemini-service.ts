@@ -18,6 +18,12 @@ import {
   deleteBookmark,
   searchBookmarks
 } from "./bookmarks-service";
+import {
+  getStockQuote,
+  getCompanyOverview,
+  searchCompanies
+} from "./alphavantage-service";
+import { searchWeb } from "./searxng-service";
 
 // Get Gemini API Key from localStorage or use the default one
 const getApiKey = () => {
@@ -40,7 +46,7 @@ interface GeminiResponse {
 
 export interface UserQuery {
   query: string;
-  source?: "calendar" | "bookmarks" | "weather" | "spotify" | "news" | "general" | "playai";
+  source?: "calendar" | "bookmarks" | "weather" | "spotify" | "news" | "general" | "playai" | "stocks" | "search";
   context?: any;
   usePlayAI?: boolean;
 }
@@ -49,7 +55,7 @@ export interface UserQuery {
 export interface AiResponse {
   text: string;
   command?: {
-    type: "calendar" | "bookmark" | "app";
+    type: "calendar" | "bookmark" | "app" | "stocks";
     action: "add" | "update" | "delete" | "search";
     data: any;
   };
@@ -120,6 +126,12 @@ export const executeCommand = async (command: any): Promise<string> => {
         const updated = updateBookmark(command.data.id, command.data);
         return updated ? "Bookmark updated successfully" : "Failed to update bookmark";
       }
+    } else if (command.type === "stocks") {
+      // Handle stock-related commands
+      if (command.action === "search" && command.data?.symbol) {
+        const quote = await getStockQuote(command.data.symbol);
+        return quote ? `Retrieved latest stock quote for ${quote.symbol}` : "Could not find stock information";
+      }
     }
     
     return "Could not execute command";
@@ -135,7 +147,18 @@ export async function queryGemini({ query, source = "general", context, usePlayA
   if (usePlayAI || query.toLowerCase().includes("playai")) {
     try {
       console.log("Using PlayAI for query:", query);
-      const playAIResponse = await sendMessageToPlayAI(query);
+      
+      // Determine if we have relevant context to send
+      let contextData;
+      if (source === "weather" || source === "news" || source === "calendar" || 
+          source === "bookmarks" || source === "stocks" || source === "search") {
+        contextData = {
+          type: source,
+          data: context
+        };
+      }
+      
+      const playAIResponse = await sendMessageToPlayAI(query, [], contextData);
       return { text: playAIResponse };
     } catch (playAIError) {
       console.error("PlayAI error, falling back to Gemini:", playAIError);
@@ -144,6 +167,90 @@ export async function queryGemini({ query, source = "general", context, usePlayA
   }
 
   try {
+    // Check for finance/stock-related queries
+    if (query.toLowerCase().includes("stock") || 
+        query.toLowerCase().includes("price") || 
+        query.toLowerCase().includes("market") ||
+        query.toLowerCase().includes("invest") ||
+        query.toLowerCase().includes("finance")) {
+      
+      // Try to extract stock symbol from query
+      let symbol = "";
+      const symbolMatch = query.match(/stock (?:of|for|price|quote) ([A-Za-z]+)/i) || 
+                         query.match(/([A-Za-z]{1,5}) stock/i) ||
+                         query.match(/symbol (?:is|:) ([A-Za-z]+)/i);
+      
+      if (symbolMatch && symbolMatch[1]) {
+        symbol = symbolMatch[1].trim().toUpperCase();
+      } else {
+        // Extract potential company name for search
+        const companyMatch = query.match(/(?:about|for|of) ([A-Za-z\s]+?)(?:\'s)? stock/i) ||
+                            query.match(/([A-Za-z\s]+?)(?:\'s)? (?:stock|share|price)/i);
+        
+        if (companyMatch && companyMatch[1]) {
+          const companyName = companyMatch[1].trim();
+          try {
+            // Search for the company symbol
+            const searchResults = await searchCompanies(companyName);
+            if (searchResults.length > 0) {
+              symbol = searchResults[0]["1. symbol"];
+            }
+          } catch (searchError) {
+            console.error("Error searching for company:", searchError);
+          }
+        }
+      }
+      
+      if (symbol) {
+        try {
+          // Get stock data
+          const [quoteData, companyData] = await Promise.all([
+            getStockQuote(symbol),
+            getCompanyOverview(symbol)
+          ]);
+          
+          if (quoteData || companyData) {
+            source = "stocks";
+            context = { quote: quoteData, company: companyData };
+          }
+        } catch (stockError) {
+          console.error("Error getting stock data:", stockError);
+          // Continue with query without stock data
+        }
+      }
+    }
+
+    // Check for web search queries
+    if (query.toLowerCase().includes("search") || 
+        query.toLowerCase().includes("find") || 
+        query.toLowerCase().includes("look up") ||
+        query.toLowerCase().includes("google") ||
+        query.toLowerCase().startsWith("what is") ||
+        query.toLowerCase().startsWith("who is") ||
+        query.toLowerCase().startsWith("when did") ||
+        query.toLowerCase().startsWith("how to")) {
+      
+      // Extract search term from query
+      let searchTerm = query;
+      
+      // Remove common search prefixes
+      searchTerm = searchTerm.replace(/^(search for|search|find|look up|google|tell me about)/i, '').trim();
+      
+      if (searchTerm) {
+        try {
+          // Get search results
+          const searchResults = await searchWeb(searchTerm);
+          if (searchResults && searchResults.length > 0) {
+            source = "search";
+            context = { results: searchResults.slice(0, 5), query: searchTerm };
+          }
+        } catch (searchError) {
+          console.error("Error getting search results:", searchError);
+          // Continue with query without search results
+        }
+      }
+    }
+    
     // Check for weather-related queries
     if (query.toLowerCase().includes("weather") || 
         query.toLowerCase().includes("temperature") || 
@@ -318,6 +425,23 @@ Respond in a helpful, conversational way. If you're executing a command, explain
       prompt = `[CONTEXT: The user is asking about music. Spotify results: ${JSON.stringify(context)}]\n\nUser query: ${query}`;
     } else if (source === "news") {
       prompt = `[CONTEXT: The user is asking about news. News results: ${JSON.stringify(context)}]\n\nUser query: ${query}. Please summarize the main points from these news articles and provide insights. Include sources when relevant.`;
+    } else if (source === "stocks") {
+      prompt = `[CONTEXT: The user is asking about stocks or financial information. Financial data: ${JSON.stringify(context)}]
+
+You can search for stock information by returning a command in your response.
+
+To search for a stock quote, include a command like this:
+[COMMAND:{"type":"stocks","action":"search","data":{"symbol":"AAPL"}}]
+
+User query: ${query}
+
+Respond in a helpful, conversational way. Provide a comprehensive analysis of the stock data provided, including current price, changes, and relevant company information if available. If no specific financial metrics are available, provide general information about the company and industry.`;
+    } else if (source === "search") {
+      prompt = `[CONTEXT: The user is asking for web search results. Search results for "${context.query}": ${JSON.stringify(context.results)}]
+
+User query: ${query}
+
+Respond in a helpful, conversational way. Use the search results to provide an informative answer. Cite sources when appropriate by including the website name in parentheses.`;
     }
 
     const apiKey = getApiKey();

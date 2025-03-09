@@ -1,9 +1,10 @@
 
 import { useState, useRef, useEffect } from "react";
-import { Send, Mic, MicOff, Loader } from "lucide-react";
+import { Send, Mic, MicOff, Loader, Search, BarChart3, CloudSun, Bookmark, Calendar } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
 
 interface ChatInputProps {
   onSendMessage: (message: string) => Promise<void>;
@@ -13,7 +14,30 @@ interface ChatInputProps {
 export function ChatInput({ onSendMessage, isLoading }: ChatInputProps) {
   const [userInput, setUserInput] = useState("");
   const [isListening, setIsListening] = useState(false);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
   const recognition = useRef<SpeechRecognition | null>(null);
+
+  // Generate relevant suggestions based on time of day
+  useEffect(() => {
+    const hour = new Date().getHours();
+    const newSuggestions = [];
+    
+    if (hour < 12) {
+      newSuggestions.push("What's the weather today?");
+      newSuggestions.push("Show me the latest news");
+    } else if (hour < 17) {
+      newSuggestions.push("What's happening in tech?");
+      newSuggestions.push("Show me AAPL stock price");
+    } else {
+      newSuggestions.push("Any interesting events tomorrow?");
+      newSuggestions.push("Search for dinner recipes");
+    }
+    
+    // Always add some general suggestions
+    newSuggestions.push("Show my bookmarks");
+    
+    setSuggestions(newSuggestions);
+  }, []);
 
   // Initialize speech recognition if available
   useEffect(() => {
@@ -82,8 +106,38 @@ export function ChatInput({ onSendMessage, isLoading }: ChatInputProps) {
     }
   };
 
+  const handleSuggestionClick = (suggestion: string) => {
+    setUserInput(suggestion);
+  };
+
+  const getIconForSuggestion = (suggestion: string) => {
+    const lowerSuggestion = suggestion.toLowerCase();
+    if (lowerSuggestion.includes("weather")) return <CloudSun size={14} />;
+    if (lowerSuggestion.includes("news")) return <span>📰</span>;
+    if (lowerSuggestion.includes("stock")) return <BarChart3 size={14} />;
+    if (lowerSuggestion.includes("search")) return <Search size={14} />;
+    if (lowerSuggestion.includes("bookmarks")) return <Bookmark size={14} />;
+    if (lowerSuggestion.includes("events")) return <Calendar size={14} />;
+    return null;
+  };
+
   return (
     <div className="p-4 border-t border-border/30">
+      {suggestions.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-3">
+          {suggestions.map((suggestion, index) => (
+            <Badge 
+              key={index} 
+              variant="secondary" 
+              className="cursor-pointer hover:bg-secondary/80 transition-colors flex items-center gap-1"
+              onClick={() => handleSuggestionClick(suggestion)}
+            >
+              {getIconForSuggestion(suggestion)}
+              {suggestion}
+            </Badge>
+          ))}
+        </div>
+      )}
       <div className="flex items-end gap-2">
         <Textarea
           value={userInput}
