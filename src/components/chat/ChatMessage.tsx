@@ -2,11 +2,11 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { formatDistanceToNow } from "date-fns";
 import Markdown from "react-markdown";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Bot, Check, Command, User } from "lucide-react";
 
 interface ChatMessageProps {
   id: string;
-  type: "user" | "assistant";
+  type: "user" | "assistant" | "system";
   content: string;
   timestamp: number;
   error?: boolean;
@@ -15,16 +15,32 @@ interface ChatMessageProps {
 export function ChatMessage({ type, content, timestamp, error }: ChatMessageProps) {
   const formattedTime = formatDistanceToNow(new Date(timestamp), { addSuffix: true });
   
+  if (type === "system") {
+    return (
+      <div className="flex justify-center my-2">
+        <div className="bg-secondary/30 text-secondary-foreground rounded-md px-3 py-1.5 text-sm flex items-center gap-2 max-w-[85%]">
+          <Command size={14} />
+          <span>{content}</span>
+          <Check size={14} className="text-green-500" />
+        </div>
+      </div>
+    );
+  }
+  
   return (
     <div className={`flex gap-3 ${type === "assistant" ? "flex-row" : "flex-row-reverse"}`}>
       <Avatar className={`h-8 w-8 ${type === "user" ? "bg-primary" : "bg-muted"}`}>
         {type === "assistant" ? (
           <>
             <AvatarImage src="/assistant-avatar.png" alt="AI Assistant" />
-            <AvatarFallback>AI</AvatarFallback>
+            <AvatarFallback>
+              <Bot size={16} />
+            </AvatarFallback>
           </>
         ) : (
-          <AvatarFallback>You</AvatarFallback>
+          <AvatarFallback>
+            <User size={16} />
+          </AvatarFallback>
         )}
       </Avatar>
       
@@ -35,8 +51,8 @@ export function ChatMessage({ type, content, timestamp, error }: ChatMessageProp
           type === "assistant" 
             ? error 
               ? "bg-red-500/10 border border-red-500/30 text-foreground" 
-              : "bg-muted text-foreground" 
-            : "bg-primary text-primary-foreground"
+              : "bg-muted/80 glassmorphism text-foreground" 
+            : "bg-primary glassmorphism text-primary-foreground"
         }`}>
           {type === "assistant" && error && (
             <div className="flex items-center gap-2 mb-2 text-red-500">

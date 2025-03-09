@@ -3,6 +3,20 @@ import { toast } from "sonner";
 import { getWeather } from "./weather-service";
 import { searchSpotify, getRecommendations } from "./spotify-service";
 import { getNews } from "./news-service";
+import { 
+  getEvents, 
+  addEvent, 
+  updateEvent, 
+  deleteEvent, 
+  getUpcomingEvents 
+} from "./calendar-service";
+import {
+  getBookmarks,
+  addBookmark,
+  updateBookmark,
+  deleteBookmark,
+  searchBookmarks
+} from "./bookmarks-service";
 
 // Get Gemini API Key from localStorage or use the default one
 const getApiKey = () => {
@@ -29,7 +43,91 @@ export interface UserQuery {
   context?: any;
 }
 
-export async function queryGemini({ query, source = "general", context }: UserQuery): Promise<string> {
+// Interface for AI response with possible command
+export interface AiResponse {
+  text: string;
+  command?: {
+    type: "calendar" | "bookmark" | "app";
+    action: "add" | "update" | "delete" | "search";
+    data: any;
+  };
+}
+
+// Parse AI response for any commands
+const parseAiResponse = (text: string): AiResponse => {
+  try {
+    // Check if there's a command section delimited by [COMMAND:...]
+    const commandRegex = /\[COMMAND:(.*?)\]/s;
+    const match = text.match(commandRegex);
+    
+    if (match && match[1]) {
+      const commandStr = match[1].trim();
+      const command = JSON.parse(commandStr);
+      
+      // Remove the command section from the displayed text
+      const cleanText = text.replace(commandRegex, '').trim();
+      
+      return {
+        text: cleanText,
+        command
+      };
+    }
+  } catch (err) {
+    console.error("Error parsing AI command:", err);
+  }
+  
+  // Return original text if no command or parsing error
+  return { text };
+};
+
+// Execute AI command
+export const executeCommand = async (command: any): Promise<string> => {
+  try {
+    if (command.type === "calendar") {
+      if (command.action === "add" && command.data?.title) {
+        const event = addEvent({
+          title: command.data.title,
+          description: command.data.description || "",
+          start: command.data.start || Date.now(),
+          end: command.data.end || (Date.now() + 3600000),
+          allDay: command.data.allDay || false,
+          location: command.data.location || "",
+        });
+        return `Added event "${event.title}" to your calendar`;
+      } else if (command.action === "delete" && command.data?.id) {
+        deleteEvent(command.data.id);
+        return "Event deleted successfully";
+      } else if (command.action === "update" && command.data?.id) {
+        const updated = updateEvent(command.data.id, command.data);
+        return updated ? "Event updated successfully" : "Failed to update event";
+      }
+    } else if (command.type === "bookmark") {
+      if (command.action === "add" && command.data?.title && command.data?.url) {
+        const bookmark = addBookmark({
+          title: command.data.title,
+          url: command.data.url,
+          description: command.data.description || "",
+          category: command.data.category || "",
+          tags: command.data.tags || [],
+        });
+        return `Added bookmark "${bookmark.title}" to your collection`;
+      } else if (command.action === "delete" && command.data?.id) {
+        deleteBookmark(command.data.id);
+        return "Bookmark deleted successfully";
+      } else if (command.action === "update" && command.data?.id) {
+        const updated = updateBookmark(command.data.id, command.data);
+        return updated ? "Bookmark updated successfully" : "Failed to update bookmark";
+      }
+    }
+    
+    return "Could not execute command";
+  } catch (error) {
+    console.error("Error executing command:", error);
+    return "Error executing command";
+  }
+};
+
+export async function queryGemini({ query, source = "general", context }: UserQuery): Promise<AiResponse> {
   try {
     // Check for weather-related queries
     if (query.toLowerCase().includes("weather") || 
@@ -132,13 +230,70 @@ export async function queryGemini({ query, source = "general", context }: UserQu
       }
     }
 
+    // Check for calendar-related commands
+    if (query.toLowerCase().includes("add event") || 
+        query.toLowerCase().includes("create event") ||
+        query.toLowerCase().includes("schedule") ||
+        query.toLowerCase().includes("appointment") ||
+        (query.toLowerCase().includes("calendar") && 
+         (query.toLowerCase().includes("add") || 
+          query.toLowerCase().includes("create") || 
+          query.toLowerCase().includes("remove") ||
+          query.toLowerCase().includes("delete")))) {
+      source = "calendar";
+      context = getEvents();
+    }
+
+    // Check for bookmark-related commands
+    if (query.toLowerCase().includes("add bookmark") || 
+        query.toLowerCase().includes("save bookmark") ||
+        query.toLowerCase().includes("bookmark this") ||
+        (query.toLowerCase().includes("bookmark") && 
+         (query.toLowerCase().includes("add") || 
+          query.toLowerCase().includes("save") || 
+          query.toLowerCase().includes("remove") ||
+          query.toLowerCase().includes("delete")))) {
+      source = "bookmarks";
+      context = getBookmarks();
+    }
+
     // Build the request based on the source and context
     let prompt = query;
     
     if (source === "calendar") {
-      prompt = `[CONTEXT: The user is asking about their calendar. Calendar context: ${JSON.stringify(context)}]\n\nUser query: ${query}`;
+      prompt = `[CONTEXT: The user is asking about their calendar or wants to modify calendar events. Calendar context: ${JSON.stringify(context)}]
+
+You can create, update, or delete calendar events by returning a command in your response.
+
+To add an event, include a command like this:
+[COMMAND:{"type":"calendar","action":"add","data":{"title":"Meeting with John","description":"Discuss project timeline","start":1652918400000,"end":1652925600000,"allDay":false,"location":"Office"}}]
+
+To delete an event, include a command like this:
+[COMMAND:{"type":"calendar","action":"delete","data":{"id":"event-id-to-delete"}}]
+
+To update an event, include a command like this:
+[COMMAND:{"type":"calendar","action":"update","data":{"id":"event-id-to-update","title":"Updated title","description":"Updated description"}}]
+
+User query: ${query}
+
+Respond in a helpful, conversational way. If you're executing a command, explain what you're doing.`;
     } else if (source === "bookmarks") {
-      prompt = `[CONTEXT: The user is asking about their bookmarks. Bookmark context: ${JSON.stringify(context)}]\n\nUser query: ${query}`;
+      prompt = `[CONTEXT: The user is asking about their bookmarks or wants to modify bookmarks. Bookmark context: ${JSON.stringify(context)}]
+
+You can create, update, or delete bookmarks by returning a command in your response.
+
+To add a bookmark, include a command like this:
+[COMMAND:{"type":"bookmark","action":"add","data":{"title":"Example Website","url":"https://example.com","description":"An example website"}}]
+
+To delete a bookmark, include a command like this:
+[COMMAND:{"type":"bookmark","action":"delete","data":{"id":"bookmark-id-to-delete"}}]
+
+To update a bookmark, include a command like this:
+[COMMAND:{"type":"bookmark","action":"update","data":{"id":"bookmark-id-to-update","title":"Updated title","description":"Updated description"}}]
+
+User query: ${query}
+
+Respond in a helpful, conversational way. If you're executing a command, explain what you're doing.`;
     } else if (source === "weather") {
       prompt = `[CONTEXT: The user is asking about weather. Weather data: ${JSON.stringify(context)}]\n\nUser query: ${query}`;
     } else if (source === "spotify") {
@@ -192,7 +347,7 @@ export async function queryGemini({ query, source = "general", context }: UserQu
     const data: GeminiResponse = await response.json();
     
     if (data.candidates && data.candidates[0]?.content?.parts[0]?.text) {
-      return data.candidates[0].content.parts[0].text;
+      return parseAiResponse(data.candidates[0].content.parts[0].text);
     } else {
       throw new Error("No valid response received from Gemini API");
     }
@@ -203,13 +358,13 @@ export async function queryGemini({ query, source = "general", context }: UserQu
     toast.error(`AI assistant error: ${errorMessage}`);
     
     if (errorMessage.includes("API key invalid")) {
-      return "I'm having trouble accessing my AI capabilities. Please check your API key in the settings page.";
+      return { text: "I'm having trouble accessing my AI capabilities. Please check your API key in the settings page." };
     }
     
     if (errorMessage.includes("rate limit")) {
-      return "I've reached my usage limit. Please try again in a few minutes.";
+      return { text: "I've reached my usage limit. Please try again in a few minutes." };
     }
     
-    return "I'm sorry, I encountered an error processing your request. Please try again later.";
+    return { text: "I'm sorry, I encountered an error processing your request. Please try again later." };
   }
 }

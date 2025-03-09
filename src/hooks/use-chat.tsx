@@ -3,11 +3,11 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { getUpcomingEvents } from "@/services/calendar-service";
 import { getBookmarks } from "@/services/bookmarks-service";
-import { queryGemini, UserQuery } from "@/services/gemini-service";
+import { queryGemini, UserQuery, executeCommand, AiResponse } from "@/services/gemini-service";
 
 export interface Message {
   id: string;
-  type: "user" | "assistant";
+  type: "user" | "assistant" | "system";
   content: string;
   timestamp: number;
   error?: boolean;
@@ -25,6 +25,30 @@ export function useChat() {
     
     const lastUserMessage = messages[messages.length - 1 - lastUserMessageIndex];
     await sendMessage(lastUserMessage.content, true);
+  };
+
+  const handleCommand = async (response: AiResponse) => {
+    if (!response.command) return response.text;
+    
+    try {
+      const resultMessage = await executeCommand(response.command);
+      
+      // Add system message about successful command execution
+      const systemMessage: Message = {
+        id: crypto.randomUUID(),
+        type: "system",
+        content: resultMessage,
+        timestamp: Date.now(),
+      };
+      
+      setMessages(prev => [...prev, systemMessage]);
+      
+      // Add confirmation details to the response text
+      return `${response.text}\n\n✅ ${resultMessage}`;
+    } catch (error) {
+      console.error("Error executing command:", error);
+      return `${response.text}\n\n❌ Sorry, I couldn't complete that action.`;
+    }
   };
 
   const sendMessage = async (userInput: string, isRetry = false) => {
@@ -64,12 +88,15 @@ export function useChat() {
         query.context = getBookmarks();
       }
       
-      const response = await queryGemini(query);
+      const aiResponse = await queryGemini(query);
+      
+      // Handle any commands in the response
+      const finalResponseText = await handleCommand(aiResponse);
       
       const assistantMessage: Message = {
         id: crypto.randomUUID(),
         type: "assistant",
-        content: response,
+        content: finalResponseText,
         timestamp: Date.now(),
       };
       

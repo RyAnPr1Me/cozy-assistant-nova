@@ -4,8 +4,9 @@ import { ChatMessage } from "./ChatMessage";
 import { ChatInput } from "./ChatInput";
 import { EmptyChat } from "./EmptyChat";
 import { useChat } from "@/hooks/use-chat";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
 export function ChatInterface() {
   const { messages, isLoading, sendMessage, retryLastMessage } = useChat();
@@ -25,7 +26,17 @@ export function ChatInterface() {
   const showRetryButton = lastMessage?.error && !isLoading;
 
   return (
-    <div className="flex flex-col h-[80vh] overflow-hidden rounded-xl glassmorphism">
+    <div className="flex flex-col h-[80vh] overflow-hidden rounded-xl glassmorphism border border-border/40 shadow-lg">
+      <div className="p-4 border-b border-border/30 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Sparkles size={18} className="text-primary" />
+          <h3 className="font-medium">AI Assistant</h3>
+        </div>
+        <Badge variant="outline" className="text-xs bg-primary/10">
+          Gemini 1.5 Pro
+        </Badge>
+      </div>
+      
       <div className="flex-1 overflow-y-auto p-4 scrollbar-none space-y-6">
         {messages.length === 0 ? (
           <EmptyChat />
