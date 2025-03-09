@@ -17,6 +17,14 @@ export function useChat() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
+  const [usePlayAI, setUsePlayAI] = useState(false);
+
+  const toggleAIProvider = () => {
+    const newValue = !usePlayAI;
+    setUsePlayAI(newValue);
+    toast.info(`Switched to ${newValue ? "PlayAI" : "Gemini"} as the AI provider`);
+    return newValue;
+  };
 
   const retryLastMessage = async () => {
     // Find the last user message
@@ -54,6 +62,37 @@ export function useChat() {
   const sendMessage = async (userInput: string, isRetry = false) => {
     if (!userInput.trim()) return;
     
+    // Check for commands to switch AI providers
+    if (userInput.toLowerCase().includes("use playai") || userInput.toLowerCase().includes("switch to playai")) {
+      setUsePlayAI(true);
+      toast.success("Switched to PlayAI for conversation");
+      
+      const systemMessage: Message = {
+        id: crypto.randomUUID(),
+        type: "system",
+        content: "Switched to PlayAI for conversation",
+        timestamp: Date.now(),
+      };
+      
+      setMessages(prev => [...prev, systemMessage]);
+      return;
+    }
+    
+    if (userInput.toLowerCase().includes("use gemini") || userInput.toLowerCase().includes("switch to gemini")) {
+      setUsePlayAI(false);
+      toast.success("Switched to Gemini for conversation");
+      
+      const systemMessage: Message = {
+        id: crypto.randomUUID(),
+        type: "system",
+        content: "Switched to Gemini for conversation",
+        timestamp: Date.now(),
+      };
+      
+      setMessages(prev => [...prev, systemMessage]);
+      return;
+    }
+    
     // If this is a retry, don't add a new user message
     if (!isRetry) {
       const newUserMessage: Message = {
@@ -70,7 +109,10 @@ export function useChat() {
     
     try {
       // Add context based on user query
-      const query: UserQuery = { query: userInput };
+      const query: UserQuery = { 
+        query: userInput,
+        usePlayAI: usePlayAI
+      };
       
       // Check if the query is related to calendar
       if (userInput.toLowerCase().includes("calendar") || 
@@ -154,6 +196,8 @@ export function useChat() {
     messages,
     isLoading,
     sendMessage,
-    retryLastMessage
+    retryLastMessage,
+    toggleAIProvider,
+    isUsingPlayAI: usePlayAI
   };
 }

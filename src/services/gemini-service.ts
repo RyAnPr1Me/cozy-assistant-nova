@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { getWeather } from "./weather-service";
 import { searchSpotify, getRecommendations } from "./spotify-service";
 import { getNews } from "./news-service";
+import { sendMessageToPlayAI } from "./playai-service";
 import { 
   getEvents, 
   addEvent, 
@@ -39,8 +40,9 @@ interface GeminiResponse {
 
 export interface UserQuery {
   query: string;
-  source?: "calendar" | "bookmarks" | "weather" | "spotify" | "news" | "general";
+  source?: "calendar" | "bookmarks" | "weather" | "spotify" | "news" | "general" | "playai";
   context?: any;
+  usePlayAI?: boolean;
 }
 
 // Interface for AI response with possible command
@@ -127,7 +129,20 @@ export const executeCommand = async (command: any): Promise<string> => {
   }
 };
 
-export async function queryGemini({ query, source = "general", context }: UserQuery): Promise<AiResponse> {
+// Try to use PlayAI first, fall back to Gemini if needed
+export async function queryGemini({ query, source = "general", context, usePlayAI = false }: UserQuery): Promise<AiResponse> {
+  // Try PlayAI first if specified
+  if (usePlayAI || query.toLowerCase().includes("playai")) {
+    try {
+      console.log("Using PlayAI for query:", query);
+      const playAIResponse = await sendMessageToPlayAI(query);
+      return { text: playAIResponse };
+    } catch (playAIError) {
+      console.error("PlayAI error, falling back to Gemini:", playAIError);
+      // Continue with Gemini as fallback
+    }
+  }
+
   try {
     // Check for weather-related queries
     if (query.toLowerCase().includes("weather") || 
@@ -239,7 +254,9 @@ export async function queryGemini({ query, source = "general", context }: UserQu
          (query.toLowerCase().includes("add") || 
           query.toLowerCase().includes("create") || 
           query.toLowerCase().includes("remove") ||
-          query.toLowerCase().includes("delete")))) {
+          query.toLowerCase().includes("delete") ||
+          query.toLowerCase().includes("update") ||
+          query.toLowerCase().includes("edit")))) {
       source = "calendar";
       context = getEvents();
     }
@@ -276,7 +293,8 @@ To update an event, include a command like this:
 
 User query: ${query}
 
-Respond in a helpful, conversational way. If you're executing a command, explain what you're doing.`;
+Respond in a helpful, conversational way. If you're executing a command, explain what you're doing.
+Please include all necessary details in your command, including timestamps for the event. For calendar events, convert date strings to timestamps in milliseconds.`;
     } else if (source === "bookmarks") {
       prompt = `[CONTEXT: The user is asking about their bookmarks or wants to modify bookmarks. Bookmark context: ${JSON.stringify(context)}]
 
