@@ -2,7 +2,8 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { formatDistanceToNow } from "date-fns";
 import Markdown from "react-markdown";
-import { AlertTriangle, Bot, Check, Command, User } from "lucide-react";
+import { AlertTriangle, Bot, Check, Command, User, Search, BarChart3, CloudSun, Bookmark, Calendar } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface ChatMessageProps {
   id: string;
@@ -10,9 +11,10 @@ interface ChatMessageProps {
   content: string;
   timestamp: number;
   error?: boolean;
+  source?: string;
 }
 
-export function ChatMessage({ type, content, timestamp, error }: ChatMessageProps) {
+export function ChatMessage({ id, type, content, timestamp, error, source }: ChatMessageProps) {
   const formattedTime = formatDistanceToNow(new Date(timestamp), { addSuffix: true });
   
   if (type === "system") {
@@ -26,6 +28,23 @@ export function ChatMessage({ type, content, timestamp, error }: ChatMessageProp
       </div>
     );
   }
+
+  const getSourceIcon = (source?: string) => {
+    switch (source) {
+      case "stocks":
+        return <BarChart3 size={14} className="text-green-500" />;
+      case "search":
+        return <Search size={14} className="text-blue-500" />;
+      case "weather":
+        return <CloudSun size={14} className="text-yellow-500" />;
+      case "calendar":
+        return <Calendar size={14} className="text-purple-500" />;
+      case "bookmarks":
+        return <Bookmark size={14} className="text-orange-500" />;
+      default:
+        return null;
+    }
+  };
   
   return (
     <div className={`flex gap-3 ${type === "assistant" ? "flex-row" : "flex-row-reverse"}`}>
@@ -59,6 +78,22 @@ export function ChatMessage({ type, content, timestamp, error }: ChatMessageProp
               <AlertTriangle size={16} />
               <span className="text-sm font-medium">Error processing request</span>
             </div>
+          )}
+          
+          {source && type === "assistant" && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex items-center gap-1.5 mb-2 text-xs text-muted-foreground">
+                    {getSourceIcon(source)}
+                    <span>Information from {source}</span>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Data source: {source}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           )}
           
           {type === "assistant" ? (

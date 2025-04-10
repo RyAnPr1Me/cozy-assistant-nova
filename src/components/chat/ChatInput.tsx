@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface ChatInputProps {
   onSendMessage: (message: string) => Promise<void>;
@@ -26,15 +27,15 @@ export function ChatInput({ onSendMessage, isLoading }: ChatInputProps) {
       newSuggestions.push("What's the weather today?");
       newSuggestions.push("Show me the latest news");
     } else if (hour < 17) {
-      newSuggestions.push("What's happening in tech?");
       newSuggestions.push("Show me AAPL stock price");
+      newSuggestions.push("Add a bookmark for example.com");
     } else {
-      newSuggestions.push("Any interesting events tomorrow?");
       newSuggestions.push("Search for dinner recipes");
+      newSuggestions.push("Add an event for tomorrow");
     }
     
-    // Always add some general suggestions
-    newSuggestions.push("Show my bookmarks");
+    // Add a couple command examples
+    newSuggestions.push("Use Exa search");
     
     setSuggestions(newSuggestions);
   }, []);
@@ -113,23 +114,52 @@ export function ChatInput({ onSendMessage, isLoading }: ChatInputProps) {
   const getIconForSuggestion = (suggestion: string) => {
     const lowerSuggestion = suggestion.toLowerCase();
     if (lowerSuggestion.includes("weather")) return <CloudSun size={14} />;
-    if (lowerSuggestion.includes("news")) return <span>📰</span>;
     if (lowerSuggestion.includes("stock")) return <BarChart3 size={14} />;
-    if (lowerSuggestion.includes("search")) return <Search size={14} />;
-    if (lowerSuggestion.includes("bookmarks")) return <Bookmark size={14} />;
-    if (lowerSuggestion.includes("events")) return <Calendar size={14} />;
+    if (lowerSuggestion.includes("search") || lowerSuggestion.includes("exa")) return <Search size={14} />;
+    if (lowerSuggestion.includes("bookmark")) return <Bookmark size={14} />;
+    if (lowerSuggestion.includes("event")) return <Calendar size={14} />;
     return null;
   };
 
+  const commands = [
+    { text: "Use Exa search", icon: <Search size={12} className="text-blue-500" /> },
+    { text: "Use SearXNG search", icon: <Search size={12} className="text-orange-500" /> },
+    { text: "Add a bookmark", icon: <Bookmark size={12} /> },
+    { text: "Add an event", icon: <Calendar size={12} /> },
+  ];
+
   return (
-    <div className="p-4 border-t border-border/30">
+    <div className="p-3 border-t border-border/30">
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="flex flex-wrap gap-2 mb-2">
+              {commands.map((cmd, index) => (
+                <Badge 
+                  key={index} 
+                  variant="outline" 
+                  className="cursor-pointer hover:bg-secondary/80 transition-colors flex items-center gap-1"
+                  onClick={() => handleSuggestionClick(cmd.text)}
+                >
+                  {cmd.icon}
+                  {cmd.text}
+                </Badge>
+              ))}
+            </div>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p className="text-xs">Click to use these commands</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+      
       {suggestions.length > 0 && (
-        <div className="flex flex-wrap gap-2 mb-3">
+        <div className="flex overflow-x-auto scrollbar-none gap-2 mb-3 pb-1">
           {suggestions.map((suggestion, index) => (
             <Badge 
               key={index} 
               variant="secondary" 
-              className="cursor-pointer hover:bg-secondary/80 transition-colors flex items-center gap-1"
+              className="cursor-pointer hover:bg-secondary/80 transition-colors flex items-center gap-1 whitespace-nowrap"
               onClick={() => handleSuggestionClick(suggestion)}
             >
               {getIconForSuggestion(suggestion)}
@@ -138,12 +168,13 @@ export function ChatInput({ onSendMessage, isLoading }: ChatInputProps) {
           ))}
         </div>
       )}
+      
       <div className="flex items-end gap-2">
         <Textarea
           value={userInput}
           onChange={(e) => setUserInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Type a message..."
+          placeholder="Type a message or command..."
           className="min-h-12 glassmorphism resize-none"
           rows={1}
         />
@@ -174,7 +205,7 @@ export function ChatInput({ onSendMessage, isLoading }: ChatInputProps) {
       </div>
       {isListening && (
         <div className="text-xs text-primary animate-pulse mt-2">
-          Listening... (speak clearly into your microphone)
+          Listening... (speak clearly)
         </div>
       )}
     </div>
