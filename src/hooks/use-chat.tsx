@@ -6,7 +6,8 @@ import { getWeather } from "@/services/weather-service";
 import { getNews } from "@/services/news-service";
 import { getStockQuote, searchCompanies } from "@/services/alphavantage-service";
 import { searchWeb, searchWithExaOnly, searchWithSearXNGOnly } from "@/services/searxng-service";
-import { queryGemini, UserQuery, executeCommand, AiResponse } from "@/services/gemini-service";
+import { queryAI, UserQuery, executeCommand, AiResponse, handleAICommand } from "@/services/ai";
+import { determineSearchProvider } from "@/services/ai/context-analyzer";
 
 export interface Message {
   id: string;
@@ -61,28 +62,6 @@ export function useChat() {
     await sendMessage(lastUserMessage.content, true);
   };
 
-  const handleCommand = async (response: AiResponse) => {
-    if (!response.command) return response.text;
-    
-    try {
-      const resultMessage = await executeCommand(response.command);
-      
-      const systemMessage: Message = {
-        id: crypto.randomUUID(),
-        type: "system",
-        content: resultMessage,
-        timestamp: Date.now(),
-      };
-      
-      setMessages(prev => [...prev, systemMessage]);
-      
-      return `${response.text}\n\n✅ ${resultMessage}`;
-    } catch (error) {
-      console.error("Error executing command:", error);
-      return `${response.text}\n\n❌ Sorry, I couldn't complete that action.`;
-    }
-  };
-
   const learnFromUserInteraction = (userInput: string) => {
     const locationMatch = userInput.match(/(?:i am|i'm|i live) in ([a-zA-Z\s,]+)/i);
     if (locationMatch && locationMatch[1]) {
@@ -100,29 +79,6 @@ export function useChat() {
         console.log(`Added preferred topic: ${topic}`);
       }
     }
-  };
-
-  const determineSearchProvider = (query: string) => {
-    if (query.toLowerCase().includes("research") || 
-        query.toLowerCase().includes("academic") || 
-        query.toLowerCase().includes("scientific") ||
-        query.toLowerCase().includes("study") ||
-        query.toLowerCase().includes("paper") ||
-        query.toLowerCase().includes("fact") ||
-        query.toLowerCase().includes("precise") ||
-        /^(what|who|when|where|why|how) (is|are|was|were|did|do|does)/.test(query.toLowerCase())) {
-      return "exa";
-    }
-    
-    if (query.toLowerCase().includes("latest") || 
-        query.toLowerCase().includes("recent") ||
-        query.toLowerCase().includes("current") ||
-        query.toLowerCase().includes("today") ||
-        query.toLowerCase().includes("news")) {
-      return "searxng";
-    }
-    
-    return "combined";
   };
 
   const sendMessage = async (userInput: string, isRetry = false) => {
@@ -159,12 +115,12 @@ export function useChat() {
     }
     
     if (!isRetry) {
-      const newUserMessage: Message = {
+      const newUserMessage = {
         id: crypto.randomUUID(),
         type: "user",
         content: userInput,
         timestamp: Date.now(),
-      };
+      } as Message;
       
       setMessages(prev => [...prev, newUserMessage]);
       
@@ -180,141 +136,9 @@ export function useChat() {
         searchProvider: determineSearchProvider(userInput)
       };
       
-      if (userInput.toLowerCase().includes("stock") || 
-          userInput.toLowerCase().includes("market") || 
-          userInput.toLowerCase().includes("finance") ||
-          userInput.toLowerCase().includes("invest")) {
-        
-        const symbolMatch = userInput.match(/stock (?:of|for|price|quote) ([A-Za-z]+)/i) || 
-                           userInput.match(/([A-Za-z]{1,5}) stock/i);
-        
-        if (symbolMatch && symbolMatch[1]) {
-          const symbol = symbolMatch[1].trim().toUpperCase();
-          try {
-            const quoteData = await getStockQuote(symbol);
-            if (quoteData) {
-              query.source = "stocks";
-              query.context = { quote: quoteData };
-            }
-          } catch (error) {
-            console.error("Error fetching stock data:", error);
-          }
-        } else {
-          const companyMatch = userInput.match(/(?:about|for|of) ([A-Za-z\s]+?)(?:\'s)? stock/i);
-          if (companyMatch && companyMatch[1]) {
-            const companyName = companyMatch[1].trim();
-            try {
-              const searchResults = await searchCompanies(companyName);
-              if (searchResults.length > 0) {
-                const symbol = searchResults[0]["1. symbol"];
-                const quoteData = await getStockQuote(symbol);
-                if (quoteData) {
-                  query.source = "stocks";
-                  query.context = { 
-                    quote: quoteData,
-                    company: { name: companyName, symbol: symbol }
-                  };
-                }
-              }
-            } catch (error) {
-              console.error("Error searching for company:", error);
-            }
-          }
-        }
-      }
+      const aiResponse = await queryAI(query);
       
-      if (userInput.toLowerCase().includes("search") || 
-          userInput.toLowerCase().includes("find") || 
-          userInput.toLowerCase().includes("look up") ||
-          userInput.toLowerCase().startsWith("what is") ||
-          userInput.toLowerCase().startsWith("who is") ||
-          userInput.toLowerCase().startsWith("how to")) {
-        
-        let searchTerm = userInput;
-        searchTerm = searchTerm.replace(/^(search for|search|find|look up|tell me about)/i, '').trim();
-        
-        if (searchTerm) {
-          try {
-            let searchResults;
-            const searchProvider = determineSearchProvider(userInput);
-            
-            if (searchProvider === "exa") {
-              searchResults = await searchWithExaOnly(searchTerm);
-            } else if (searchProvider === "searxng") {
-              searchResults = await searchWithSearXNGOnly(searchTerm);
-            } else {
-              searchResults = await searchWeb(searchTerm);
-            }
-            
-            if (searchResults && searchResults.length > 0) {
-              query.source = "search";
-              query.context = { 
-                results: searchResults.slice(0, 5), 
-                query: searchTerm,
-                provider: searchProvider
-              };
-            }
-          } catch (error) {
-            console.error("Error searching the web:", error);
-          }
-        }
-      }
-      
-      if (userInput.toLowerCase().includes("weather") || 
-          userInput.toLowerCase().includes("temperature") || 
-          userInput.toLowerCase().includes("forecast")) {
-        
-        let location = userPreferences.defaultLocation;
-        const locationMatch = userInput.match(/weather (?:in|at|for) ([a-zA-Z\s,]+)/i);
-        if (locationMatch && locationMatch[1]) {
-          location = locationMatch[1].trim();
-        }
-        
-        try {
-          const weatherData = await getWeather(location);
-          query.source = "weather";
-          query.context = weatherData;
-        } catch (error) {
-          console.error("Error fetching weather data:", error);
-        }
-      }
-      
-      if (userInput.toLowerCase().includes("news") || 
-          userInput.toLowerCase().includes("headlines") || 
-          userInput.toLowerCase().includes("current events")) {
-        
-        let topic = userPreferences.preferredTopics[0] || "latest";
-        const topicMatch = userInput.match(/news (?:about|on) ([a-zA-Z\s,]+)/i);
-        if (topicMatch && topicMatch[1]) {
-          topic = topicMatch[1].trim();
-        }
-        
-        try {
-          const newsData = await getNews(topic);
-          query.source = "news";
-          query.context = newsData;
-        } catch (error) {
-          console.error("Error fetching news data:", error);
-        }
-      }
-      
-      if (userInput.toLowerCase().includes("calendar") || 
-          userInput.toLowerCase().includes("schedule") || 
-          userInput.toLowerCase().includes("event")) {
-        query.source = "calendar";
-        query.context = getUpcomingEvents(10);
-      }
-      
-      if (userInput.toLowerCase().includes("bookmark") || 
-          userInput.toLowerCase().includes("website") || 
-          userInput.toLowerCase().includes("link")) {
-        query.source = "bookmarks";
-        query.context = getBookmarks();
-      }
-      
-      const aiResponse = await queryGemini(query);
-      
-      const finalResponseText = await handleCommand(aiResponse);
+      const finalResponseText = await handleAICommand(aiResponse);
       
       const assistantMessage: Message = {
         id: crypto.randomUUID(),
