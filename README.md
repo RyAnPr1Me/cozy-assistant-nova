@@ -1,69 +1,58 @@
-# Welcome to your Lovable project
 
-## Project info
+# AI Assistant with Smart Web Search and Financial Information
 
-**URL**: https://lovable.dev/projects/56880e7a-e64f-4cb6-ace0-aacd9f4bd31a
+## Overview
 
-## How can I edit this code?
+This project is an advanced AI assistant that intelligently integrates multiple data sources to provide rich, contextual responses to user queries. It features cutting-edge natural language processing capabilities combined with real-time data from web searches, financial markets, weather services, and personal information management.
 
-There are several ways of editing your application.
+## Key Features
 
-**Use Lovable**
+- **Intelligent Search Engine Selection**: Automatically determines whether to use Exa or SearXNG search engines based on the nature of the query
+- **Financial Data Integration**: Real-time stock quotes and company information via AlphaVantage API
+- **Personal Information Management**: Calendar events and bookmark management capabilities
+- **Multi-Modal AI**: Switch between Gemini and PlayAI models for different use cases
+- **Command System**: Execute commands directly from natural language input
+- **Voice Input**: Supports speech recognition for hands-free interaction
+- **Rich Context Awareness**: Learns user preferences to provide personalized responses
+- **Weather & News**: Real-time weather forecasts and news updates
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/56880e7a-e64f-4cb6-ace0-aacd9f4bd31a) and start prompting.
+## Technologies Used
 
-Changes made via Lovable will be committed automatically to this repo.
+- **Frontend**: React, TypeScript, Tailwind CSS, shadcn/ui components
+- **AI Integration**: Google's Gemini API and PlayAI
+- **Search APIs**: Exa and SearXNG for comprehensive web search capabilities
+- **Financial Data**: AlphaVantage API for stock market information
+- **State Management**: React Context and custom hooks
 
-**Use your preferred IDE**
+## Usage Examples
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+- "What's the weather like in Boston?"
+- "Tell me about AAPL stock performance"
+- "Search for the latest research on quantum computing"
+- "Add a bookmark for lovable.dev with the description 'AI web development platform'"
+- "Add an event for my dentist appointment next Tuesday at 2pm"
+- "Show me the latest news about artificial intelligence"
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+## Getting Started
 
-Follow these steps:
+1. Clone the repository
+2. Install dependencies with `npm install`
+3. Start the development server with `npm run dev`
+4. Open your browser to the displayed local URL
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+## API Keys
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+This project uses several external APIs that require authentication:
+- AlphaVantage for financial data
+- Exa for web search
+- Google's Gemini for AI processing
 
-# Step 3: Install the necessary dependencies.
-npm i
+Store your API keys securely and never commit them directly to the repository.
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
+## Contributing
 
-**Edit a file directly in GitHub**
+Contributions are welcome! Please feel free to submit a Pull Request.
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## License
 
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with .
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/56880e7a-e64f-4cb6-ace0-aacd9f4bd31a) and click on Share -> Publish.
-
-## I want to use a custom domain - is that possible?
-
-We don't support custom domains (yet). If you want to deploy your project under your own domain then we recommend using Netlify. Visit our docs for more details: [Custom domains](https://docs.lovable.dev/tips-tricks/custom-domain/)
+This project is licensed under the MIT License - see the LICENSE file for details.

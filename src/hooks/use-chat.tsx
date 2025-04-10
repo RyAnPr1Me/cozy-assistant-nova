@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { getUpcomingEvents } from "@/services/calendar-service";
@@ -25,7 +26,7 @@ export function useChat() {
   const [userPreferences, setUserPreferences] = useState({
     defaultLocation: "New York",
     preferredTopics: [] as string[],
-    preferredSearchProvider: "combined" as "exa" | "searxng" | "combined"
+    searchLearningEnabled: true
   });
 
   useEffect(() => {
@@ -100,17 +101,33 @@ export function useChat() {
         console.log(`Added preferred topic: ${topic}`);
       }
     }
-    
-    if (userInput.toLowerCase().includes("use exa") || userInput.toLowerCase().includes("search with exa")) {
-      updateUserPreferences({ preferredSearchProvider: "exa" });
-      console.log("Updated preferred search provider to: Exa");
-    } else if (userInput.toLowerCase().includes("use searxng") || userInput.toLowerCase().includes("search with searxng")) {
-      updateUserPreferences({ preferredSearchProvider: "searxng" });
-      console.log("Updated preferred search provider to: SearXNG");
-    } else if (userInput.toLowerCase().includes("use both search") || userInput.toLowerCase().includes("combined search")) {
-      updateUserPreferences({ preferredSearchProvider: "combined" });
-      console.log("Updated preferred search provider to: Combined");
+  };
+
+  // Intelligently determine which search provider to use based on query
+  const determineSearchProvider = (query: string) => {
+    // Use Exa for more precise factual queries or academic/scientific topics
+    if (query.toLowerCase().includes("research") || 
+        query.toLowerCase().includes("academic") || 
+        query.toLowerCase().includes("scientific") ||
+        query.toLowerCase().includes("study") ||
+        query.toLowerCase().includes("paper") ||
+        query.toLowerCase().includes("fact") ||
+        query.toLowerCase().includes("precise") ||
+        /^(what|who|when|where|why|how) (is|are|was|were|did|do|does)/.test(query.toLowerCase())) {
+      return "exa";
     }
+    
+    // Use SearXNG for simple queries or recent information
+    if (query.toLowerCase().includes("latest") || 
+        query.toLowerCase().includes("recent") ||
+        query.toLowerCase().includes("current") ||
+        query.toLowerCase().includes("today") ||
+        query.toLowerCase().includes("news")) {
+      return "searxng";
+    }
+    
+    // Default to combined for complex queries or if unsure
+    return "combined";
   };
 
   const sendMessage = async (userInput: string, isRetry = false) => {
@@ -146,51 +163,6 @@ export function useChat() {
       return;
     }
     
-    if (userInput.toLowerCase().includes("use exa search") || userInput.toLowerCase().includes("switch to exa")) {
-      updateUserPreferences({ preferredSearchProvider: "exa" });
-      toast.success("Switched to Exa for web searches");
-      
-      const systemMessage: Message = {
-        id: crypto.randomUUID(),
-        type: "system",
-        content: "Switched to Exa for web searches",
-        timestamp: Date.now(),
-      };
-      
-      setMessages(prev => [...prev, systemMessage]);
-      return;
-    }
-    
-    if (userInput.toLowerCase().includes("use searxng search") || userInput.toLowerCase().includes("switch to searxng")) {
-      updateUserPreferences({ preferredSearchProvider: "searxng" });
-      toast.success("Switched to SearXNG for web searches");
-      
-      const systemMessage: Message = {
-        id: crypto.randomUUID(),
-        type: "system",
-        content: "Switched to SearXNG for web searches",
-        timestamp: Date.now(),
-      };
-      
-      setMessages(prev => [...prev, systemMessage]);
-      return;
-    }
-    
-    if (userInput.toLowerCase().includes("use combined search") || userInput.toLowerCase().includes("use both search")) {
-      updateUserPreferences({ preferredSearchProvider: "combined" });
-      toast.success("Using combined search (Exa + SearXNG)");
-      
-      const systemMessage: Message = {
-        id: crypto.randomUUID(),
-        type: "system",
-        content: "Using combined search (Exa + SearXNG) for web searches",
-        timestamp: Date.now(),
-      };
-      
-      setMessages(prev => [...prev, systemMessage]);
-      return;
-    }
-    
     if (!isRetry) {
       const newUserMessage: Message = {
         id: crypto.randomUUID(),
@@ -210,7 +182,7 @@ export function useChat() {
       const query: UserQuery = { 
         query: userInput,
         usePlayAI: usePlayAI,
-        searchProvider: userPreferences.preferredSearchProvider
+        searchProvider: determineSearchProvider(userInput)
       };
       
       if (userInput.toLowerCase().includes("stock") || 
@@ -269,7 +241,7 @@ export function useChat() {
         if (searchTerm) {
           try {
             let searchResults;
-            const searchProvider = userPreferences.preferredSearchProvider;
+            const searchProvider = determineSearchProvider(userInput);
             
             if (searchProvider === "exa") {
               searchResults = await searchWithExaOnly(searchTerm);
@@ -409,7 +381,6 @@ export function useChat() {
     retryLastMessage,
     toggleAIProvider,
     isUsingPlayAI: usePlayAI,
-    userPreferences,
-    updateUserPreferences
+    userPreferences
   };
 }

@@ -8,11 +8,9 @@ import {
   RefreshCw, 
   Sparkles, 
   ToggleLeft, 
-  ToggleRight,
-  Settings
+  ToggleRight
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 export function ChatInterface() {
@@ -61,20 +59,6 @@ export function ChatInterface() {
             )}
             {isUsingPlayAI ? "PlayAI" : "Gemini"}
           </Button>
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Badge variant="outline" className="text-xs bg-primary/10">
-                  {userPreferences.preferredSearchProvider === "exa" ? "Exa Search" : 
-                   userPreferences.preferredSearchProvider === "searxng" ? "SearXNG Search" : 
-                   "Combined Search"}
-                </Badge>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Switch search providers with commands like "use exa search" or "use searxng search"</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
         </div>
       </div>
       

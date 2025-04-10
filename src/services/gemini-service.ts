@@ -24,12 +24,10 @@ import {
 } from "./alphavantage-service";
 import { searchWeb, searchWithExaOnly, searchWithSearXNGOnly } from "./searxng-service";
 
-// Get Gemini API Key from localStorage or use the default one
 const getApiKey = () => {
   return localStorage.getItem("gemini-assistant-api-key") || "AIzaSyD36BugamnLHIhQRLv3V4HXu_hg4B9-WFQ";
 };
 
-// Updated API URL to use the latest API version and endpoint
 const API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent";
 
 interface GeminiResponse {
@@ -51,7 +49,6 @@ export interface UserQuery {
   searchProvider?: "exa" | "searxng" | "combined";
 }
 
-// Interface for AI response with possible command
 export interface AiResponse {
   text: string;
   command?: {
@@ -61,10 +58,8 @@ export interface AiResponse {
   };
 }
 
-// Parse AI response for any commands
 const parseAiResponse = (text: string): AiResponse => {
   try {
-    // Check if there's a command section delimited by [COMMAND:...]
     const commandRegex = /\[COMMAND:(.*?)\]/s;
     const match = text.match(commandRegex);
     
@@ -72,7 +67,6 @@ const parseAiResponse = (text: string): AiResponse => {
       const commandStr = match[1].trim();
       const command = JSON.parse(commandStr);
       
-      // Remove the command section from the displayed text
       const cleanText = text.replace(commandRegex, '').trim();
       
       return {
@@ -84,12 +78,10 @@ const parseAiResponse = (text: string): AiResponse => {
     console.error("Error parsing AI command:", err);
   }
   
-  // Return original text if no command or parsing error
   return { text };
 };
 
-// Execute AI command
-export const executeCommand = async (command: any): Promise<string> => {
+const executeCommand = async (command: any): Promise<string> => {
   try {
     if (command.type === "calendar") {
       if (command.action === "add" && command.data?.title) {
@@ -127,7 +119,6 @@ export const executeCommand = async (command: any): Promise<string> => {
         return updated ? "Bookmark updated successfully" : "Failed to update bookmark";
       }
     } else if (command.type === "stocks") {
-      // Handle stock-related commands
       if (command.action === "search" && command.data?.symbol) {
         const quote = await getStockQuote(command.data.symbol);
         return quote ? `Retrieved latest stock quote for ${quote.symbol}` : "Could not find stock information";
@@ -141,14 +132,34 @@ export const executeCommand = async (command: any): Promise<string> => {
   }
 };
 
-// Try to use PlayAI first, fall back to Gemini if needed
-export async function queryGemini({ query, source = "general", context, usePlayAI = false, searchProvider = "combined" }: UserQuery): Promise<AiResponse> {
-  // Try PlayAI first if specified
+const determineSearchProvider = (query: string) => {
+  if (query.toLowerCase().includes("research") || 
+      query.toLowerCase().includes("academic") || 
+      query.toLowerCase().includes("scientific") ||
+      query.toLowerCase().includes("study") || 
+      query.toLowerCase().includes("paper") ||
+      query.toLowerCase().includes("fact") ||
+      query.toLowerCase().includes("precise") ||
+      /^(what|who|when|where|why|how) (is|are|was|were|did|do|does)/.test(query.toLowerCase())) {
+    return "exa";
+  }
+  
+  if (query.toLowerCase().includes("latest") || 
+      query.toLowerCase().includes("recent") ||
+      query.toLowerCase().includes("current") ||
+      query.toLowerCase().includes("today") ||
+      query.toLowerCase().includes("news")) {
+    return "searxng";
+  }
+  
+  return "combined";
+};
+
+export async function queryGemini({ query, source = "general", context, usePlayAI = false, searchProvider }: UserQuery): Promise<AiResponse> {
   if (usePlayAI || query.toLowerCase().includes("playai")) {
     try {
       console.log("Using PlayAI for query:", query);
       
-      // Determine if we have relevant context to send
       let contextData;
       if (source === "weather" || source === "news" || source === "calendar" || 
           source === "bookmarks" || source === "stocks" || source === "search") {
@@ -162,19 +173,16 @@ export async function queryGemini({ query, source = "general", context, usePlayA
       return { text: playAIResponse };
     } catch (playAIError) {
       console.error("PlayAI error, falling back to Gemini:", playAIError);
-      // Continue with Gemini as fallback
     }
   }
 
   try {
-    // Check for finance/stock-related queries
     if (query.toLowerCase().includes("stock") || 
         query.toLowerCase().includes("price") || 
         query.toLowerCase().includes("market") ||
         query.toLowerCase().includes("invest") ||
         query.toLowerCase().includes("finance")) {
       
-      // Try to extract stock symbol from query
       let symbol = "";
       const symbolMatch = query.match(/stock (?:of|for|price|quote) ([A-Za-z]+)/i) || 
                          query.match(/([A-Za-z]{1,5}) stock/i) ||
@@ -183,14 +191,12 @@ export async function queryGemini({ query, source = "general", context, usePlayA
       if (symbolMatch && symbolMatch[1]) {
         symbol = symbolMatch[1].trim().toUpperCase();
       } else {
-        // Extract potential company name for search
         const companyMatch = query.match(/(?:about|for|of) ([A-Za-z\s]+?)(?:\'s)? stock/i) ||
                             query.match(/([A-Za-z\s]+?)(?:\'s)? (?:stock|share|price)/i);
         
         if (companyMatch && companyMatch[1]) {
           const companyName = companyMatch[1].trim();
           try {
-            // Search for the company symbol
             const searchResults = await searchCompanies(companyName);
             if (searchResults.length > 0) {
               symbol = searchResults[0]["1. symbol"];
@@ -203,7 +209,6 @@ export async function queryGemini({ query, source = "general", context, usePlayA
       
       if (symbol) {
         try {
-          // Get stock data
           const [quoteData, companyData] = await Promise.all([
             getStockQuote(symbol),
             getCompanyOverview(symbol)
@@ -215,12 +220,10 @@ export async function queryGemini({ query, source = "general", context, usePlayA
           }
         } catch (stockError) {
           console.error("Error getting stock data:", stockError);
-          // Continue with query without stock data
         }
       }
     }
 
-    // Check for web search queries
     if (query.toLowerCase().includes("search") || 
         query.toLowerCase().includes("find") || 
         query.toLowerCase().includes("look up") ||
@@ -230,54 +233,44 @@ export async function queryGemini({ query, source = "general", context, usePlayA
         query.toLowerCase().startsWith("when did") ||
         query.toLowerCase().startsWith("how to")) {
       
-      // Extract search term from query
       let searchTerm = query;
       
-      // Remove common search prefixes
       searchTerm = searchTerm.replace(/^(search for|search|find|look up|google|tell me about)/i, '').trim();
       
       if (searchTerm) {
-        try {
-          // Get search results based on specified provider
-          let searchResults;
-          if (searchProvider === "exa") {
-            searchResults = await searchWithExaOnly(searchTerm);
-          } else if (searchProvider === "searxng") {
-            searchResults = await searchWithSearXNGOnly(searchTerm);
-          } else {
-            // Default to combined search
-            searchResults = await searchWeb(searchTerm);
-          }
-          
-          if (searchResults && searchResults.length > 0) {
-            source = "search";
-            context = { 
-              results: searchResults.slice(0, 5), 
-              query: searchTerm,
-              provider: searchProvider 
-            };
-          }
-        } catch (searchError) {
-          console.error("Error getting search results:", searchError);
-          // Continue with query without search results
+        const actualProvider = searchProvider || determineSearchProvider(query);
+        
+        let searchResults;
+        if (actualProvider === "exa") {
+          searchResults = await searchWithExaOnly(searchTerm);
+        } else if (actualProvider === "searxng") {
+          searchResults = await searchWithSearXNGOnly(searchTerm);
+        } else {
+          searchResults = await searchWeb(searchTerm);
+        }
+        
+        if (searchResults && searchResults.length > 0) {
+          source = "search";
+          context = { 
+            results: searchResults.slice(0, 5), 
+            query: searchTerm,
+            provider: actualProvider 
+          };
         }
       }
     }
     
-    // Check for weather-related queries
     if (query.toLowerCase().includes("weather") || 
         query.toLowerCase().includes("temperature") || 
         query.toLowerCase().includes("forecast")) {
       
-      // Try to extract location from query
-      let location = "New York"; // Default location
+      let location = "New York";
       const locationMatch = query.match(/weather (?:in|at|for) ([a-zA-Z\s,]+)/i);
       if (locationMatch && locationMatch[1]) {
         location = locationMatch[1].trim();
       }
       
       try {
-        // Get weather data
         const weatherData = await getWeather(location);
         if (weatherData) {
           source = "weather";
@@ -285,30 +278,25 @@ export async function queryGemini({ query, source = "general", context, usePlayA
         }
       } catch (weatherError) {
         console.error("Error getting weather data:", weatherError);
-        // Continue with query without weather data
       }
     }
     
-    // Check for music/Spotify-related queries
     if (query.toLowerCase().includes("music") || 
         query.toLowerCase().includes("song") || 
         query.toLowerCase().includes("artist") ||
         query.toLowerCase().includes("playlist") ||
         query.toLowerCase().includes("spotify")) {
       
-      // Extract search term from query
       const searchMatch = query.match(/(?:find|search|play|recommend|about) (.*?)(?:\s+by\s+|$)/i);
       if (searchMatch && searchMatch[1]) {
         const searchTerm = searchMatch[1].trim();
         
         try {
-          // Search Spotify
           const spotifyResults = await searchSpotify(searchTerm);
           if (spotifyResults) {
             source = "spotify";
             context = spotifyResults;
             
-            // Get recommendations if asked for
             if (query.toLowerCase().includes("recommend") || query.toLowerCase().includes("similar")) {
               const seedTracks = spotifyResults.tracks.slice(0, 2).map(track => track.id);
               if (seedTracks.length > 0) {
@@ -321,12 +309,10 @@ export async function queryGemini({ query, source = "general", context, usePlayA
           }
         } catch (spotifyError) {
           console.error("Error getting Spotify data:", spotifyError);
-          // Continue with query without Spotify data
         }
       }
     }
     
-    // Check for news-related queries
     if (query.toLowerCase().includes("news") || 
         query.toLowerCase().includes("article") || 
         query.toLowerCase().includes("report") ||
@@ -334,13 +320,11 @@ export async function queryGemini({ query, source = "general", context, usePlayA
         query.toLowerCase().includes("headline")) {
       
       try {
-        // Extract search term from query
         let searchTerm = "";
         const newsMatch = query.match(/(?:news|articles?|headlines?) (?:about|on|regarding) (.*?)(?:\s+in\s+|$)/i);
         if (newsMatch && newsMatch[1]) {
           searchTerm = newsMatch[1].trim();
         } else {
-          // If no specific term, use the most relevant keyword from the query
           const keywords = query.split(" ")
             .filter(word => word.length > 3 && 
               !["news", "article", "headline", "latest", "recent", "tell", "about", "what"].includes(word.toLowerCase())
@@ -348,7 +332,7 @@ export async function queryGemini({ query, source = "general", context, usePlayA
           if (keywords.length > 0) {
             searchTerm = keywords[0];
           } else {
-            searchTerm = "latest"; // Default search term
+            searchTerm = "latest";
           }
         }
         
@@ -361,11 +345,9 @@ export async function queryGemini({ query, source = "general", context, usePlayA
         }
       } catch (newsError) {
         console.error("Error getting news data:", newsError);
-        // Continue with query without news data
       }
     }
 
-    // Check for calendar-related commands
     if (query.toLowerCase().includes("add event") || 
         query.toLowerCase().includes("create event") ||
         query.toLowerCase().includes("schedule") ||
@@ -381,7 +363,6 @@ export async function queryGemini({ query, source = "general", context, usePlayA
       context = getEvents();
     }
 
-    // Check for bookmark-related commands
     if (query.toLowerCase().includes("add bookmark") || 
         query.toLowerCase().includes("save bookmark") ||
         query.toLowerCase().includes("bookmark this") ||
@@ -394,7 +375,6 @@ export async function queryGemini({ query, source = "general", context, usePlayA
       context = getBookmarks();
     }
 
-    // Build the request based on the source and context
     let prompt = query;
     
     if (source === "calendar") {
@@ -450,11 +430,11 @@ User query: ${query}
 
 Respond in a helpful, conversational way. Provide a comprehensive analysis of the stock data provided, including current price, changes, and relevant company information if available. If no specific financial metrics are available, provide general information about the company and industry.`;
     } else if (source === "search") {
-      const providerName = context.provider === "exa" ? "Exa" : 
-                          context.provider === "searxng" ? "SearXNG" : 
-                          "web search";
+      const providerInfo = context.provider === "exa" ? "Exa search engine" : 
+                          context.provider === "searxng" ? "SearXNG search engine" : 
+                          "combined web search engines";
       
-      prompt = `[CONTEXT: The user is asking for web search results. ${providerName} results for "${context.query}": ${JSON.stringify(context.results)}]
+      prompt = `[CONTEXT: The user is asking for web search results. I've used ${providerInfo} to find information about "${context.query}": ${JSON.stringify(context.results)}]
 
 User query: ${query}
 
