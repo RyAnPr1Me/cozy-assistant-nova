@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { getUpcomingEvents } from "@/services/calendar-service";
@@ -103,9 +102,7 @@ export function useChat() {
     }
   };
 
-  // Intelligently determine which search provider to use based on query
   const determineSearchProvider = (query: string) => {
-    // Use Exa for more precise factual queries or academic/scientific topics
     if (query.toLowerCase().includes("research") || 
         query.toLowerCase().includes("academic") || 
         query.toLowerCase().includes("scientific") ||
@@ -117,7 +114,6 @@ export function useChat() {
       return "exa";
     }
     
-    // Use SearXNG for simple queries or recent information
     if (query.toLowerCase().includes("latest") || 
         query.toLowerCase().includes("recent") ||
         query.toLowerCase().includes("current") ||
@@ -126,7 +122,6 @@ export function useChat() {
       return "searxng";
     }
     
-    // Default to combined for complex queries or if unsure
     return "combined";
   };
 

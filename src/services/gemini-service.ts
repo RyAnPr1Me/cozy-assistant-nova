@@ -1,3 +1,4 @@
+
 import { toast } from "sonner";
 import { getWeather } from "./weather-service";
 import { searchSpotify, getRecommendations } from "./spotify-service";
@@ -81,7 +82,8 @@ const parseAiResponse = (text: string): AiResponse => {
   return { text };
 };
 
-const executeCommand = async (command: any): Promise<string> => {
+// Export the executeCommand function so it can be imported in other files
+export const executeCommand = async (command: any): Promise<string> => {
   try {
     if (command.type === "calendar") {
       if (command.action === "add" && command.data?.title) {
