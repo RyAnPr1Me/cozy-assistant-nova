@@ -84,6 +84,23 @@ export function ChatInterface() {
               </Tooltip>
             </TooltipProvider>
           )}
+          {userPreferences.preferredSearchProvider && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge variant="outline" className="text-xs">
+                    <Search size={12} className="mr-1" />
+                    {userPreferences.preferredSearchProvider === "exa" ? "Exa" : 
+                     userPreferences.preferredSearchProvider === "searxng" ? "SearXNG" : 
+                     "Combined Search"}
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Your preferred search provider</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <Button 

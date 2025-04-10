@@ -1,4 +1,3 @@
-
 import { toast } from "sonner";
 import { getWeather } from "./weather-service";
 import { searchSpotify, getRecommendations } from "./spotify-service";
@@ -23,7 +22,7 @@ import {
   getCompanyOverview,
   searchCompanies
 } from "./alphavantage-service";
-import { searchWeb } from "./searxng-service";
+import { searchWeb, searchWithExaOnly, searchWithSearXNGOnly } from "./searxng-service";
 
 // Get Gemini API Key from localStorage or use the default one
 const getApiKey = () => {
@@ -49,6 +48,7 @@ export interface UserQuery {
   source?: "calendar" | "bookmarks" | "weather" | "spotify" | "news" | "general" | "playai" | "stocks" | "search";
   context?: any;
   usePlayAI?: boolean;
+  searchProvider?: "exa" | "searxng" | "combined";
 }
 
 // Interface for AI response with possible command
@@ -142,7 +142,7 @@ export const executeCommand = async (command: any): Promise<string> => {
 };
 
 // Try to use PlayAI first, fall back to Gemini if needed
-export async function queryGemini({ query, source = "general", context, usePlayAI = false }: UserQuery): Promise<AiResponse> {
+export async function queryGemini({ query, source = "general", context, usePlayAI = false, searchProvider = "combined" }: UserQuery): Promise<AiResponse> {
   // Try PlayAI first if specified
   if (usePlayAI || query.toLowerCase().includes("playai")) {
     try {
@@ -238,11 +238,24 @@ export async function queryGemini({ query, source = "general", context, usePlayA
       
       if (searchTerm) {
         try {
-          // Get search results
-          const searchResults = await searchWeb(searchTerm);
+          // Get search results based on specified provider
+          let searchResults;
+          if (searchProvider === "exa") {
+            searchResults = await searchWithExaOnly(searchTerm);
+          } else if (searchProvider === "searxng") {
+            searchResults = await searchWithSearXNGOnly(searchTerm);
+          } else {
+            // Default to combined search
+            searchResults = await searchWeb(searchTerm);
+          }
+          
           if (searchResults && searchResults.length > 0) {
             source = "search";
-            context = { results: searchResults.slice(0, 5), query: searchTerm };
+            context = { 
+              results: searchResults.slice(0, 5), 
+              query: searchTerm,
+              provider: searchProvider 
+            };
           }
         } catch (searchError) {
           console.error("Error getting search results:", searchError);
@@ -437,11 +450,15 @@ User query: ${query}
 
 Respond in a helpful, conversational way. Provide a comprehensive analysis of the stock data provided, including current price, changes, and relevant company information if available. If no specific financial metrics are available, provide general information about the company and industry.`;
     } else if (source === "search") {
-      prompt = `[CONTEXT: The user is asking for web search results. Search results for "${context.query}": ${JSON.stringify(context.results)}]
+      const providerName = context.provider === "exa" ? "Exa" : 
+                          context.provider === "searxng" ? "SearXNG" : 
+                          "web search";
+      
+      prompt = `[CONTEXT: The user is asking for web search results. ${providerName} results for "${context.query}": ${JSON.stringify(context.results)}]
 
 User query: ${query}
 
-Respond in a helpful, conversational way. Use the search results to provide an informative answer. Cite sources when appropriate by including the website name in parentheses.`;
+Respond in a helpful, conversational way. Use the search results to provide an informative answer. Cite sources when appropriate by including the website name in parentheses. If articles have publication dates or authors, consider mentioning that information to provide context about how recent the information is.`;
     }
 
     const apiKey = getApiKey();

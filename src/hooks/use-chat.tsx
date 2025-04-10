@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { getUpcomingEvents } from "@/services/calendar-service";
@@ -6,7 +5,7 @@ import { getBookmarks } from "@/services/bookmarks-service";
 import { getWeather } from "@/services/weather-service";
 import { getNews } from "@/services/news-service";
 import { getStockQuote, searchCompanies } from "@/services/alphavantage-service";
-import { searchWeb } from "@/services/searxng-service";
+import { searchWeb, searchWithExaOnly, searchWithSearXNGOnly } from "@/services/searxng-service";
 import { queryGemini, UserQuery, executeCommand, AiResponse } from "@/services/gemini-service";
 
 export interface Message {
@@ -25,10 +24,10 @@ export function useChat() {
   const [usePlayAI, setUsePlayAI] = useState(false);
   const [userPreferences, setUserPreferences] = useState({
     defaultLocation: "New York",
-    preferredTopics: [] as string[]
+    preferredTopics: [] as string[],
+    preferredSearchProvider: "combined" as "exa" | "searxng" | "combined"
   });
 
-  // Load user preferences from localStorage
   useEffect(() => {
     const savedPreferences = localStorage.getItem("user-preferences");
     if (savedPreferences) {
@@ -40,7 +39,6 @@ export function useChat() {
     }
   }, []);
 
-  // Save user preferences to localStorage
   const updateUserPreferences = (newPreferences: Partial<typeof userPreferences>) => {
     const updatedPreferences = { ...userPreferences, ...newPreferences };
     setUserPreferences(updatedPreferences);
@@ -56,7 +54,6 @@ export function useChat() {
   };
 
   const retryLastMessage = async () => {
-    // Find the last user message
     const lastUserMessageIndex = [...messages].reverse().findIndex(m => m.type === "user");
     if (lastUserMessageIndex === -1) return;
     
@@ -70,7 +67,6 @@ export function useChat() {
     try {
       const resultMessage = await executeCommand(response.command);
       
-      // Add system message about successful command execution
       const systemMessage: Message = {
         id: crypto.randomUUID(),
         type: "system",
@@ -80,7 +76,6 @@ export function useChat() {
       
       setMessages(prev => [...prev, systemMessage]);
       
-      // Add confirmation details to the response text
       return `${response.text}\n\n✅ ${resultMessage}`;
     } catch (error) {
       console.error("Error executing command:", error);
@@ -88,9 +83,7 @@ export function useChat() {
     }
   };
 
-  // Learn from user interaction to update preferences
   const learnFromUserInteraction = (userInput: string) => {
-    // Extract location preferences
     const locationMatch = userInput.match(/(?:i am|i'm|i live) in ([a-zA-Z\s,]+)/i);
     if (locationMatch && locationMatch[1]) {
       const location = locationMatch[1].trim();
@@ -98,7 +91,6 @@ export function useChat() {
       console.log(`Updated default location to: ${location}`);
     }
     
-    // Extract topic preferences
     const topicMatch = userInput.match(/(?:i like|i'm interested in|tell me about) ([a-zA-Z\s,]+)/i);
     if (topicMatch && topicMatch[1]) {
       const topic = topicMatch[1].trim().toLowerCase();
@@ -108,12 +100,22 @@ export function useChat() {
         console.log(`Added preferred topic: ${topic}`);
       }
     }
+    
+    if (userInput.toLowerCase().includes("use exa") || userInput.toLowerCase().includes("search with exa")) {
+      updateUserPreferences({ preferredSearchProvider: "exa" });
+      console.log("Updated preferred search provider to: Exa");
+    } else if (userInput.toLowerCase().includes("use searxng") || userInput.toLowerCase().includes("search with searxng")) {
+      updateUserPreferences({ preferredSearchProvider: "searxng" });
+      console.log("Updated preferred search provider to: SearXNG");
+    } else if (userInput.toLowerCase().includes("use both search") || userInput.toLowerCase().includes("combined search")) {
+      updateUserPreferences({ preferredSearchProvider: "combined" });
+      console.log("Updated preferred search provider to: Combined");
+    }
   };
 
   const sendMessage = async (userInput: string, isRetry = false) => {
     if (!userInput.trim()) return;
     
-    // Check for commands to switch AI providers
     if (userInput.toLowerCase().includes("use playai") || userInput.toLowerCase().includes("switch to playai")) {
       setUsePlayAI(true);
       toast.success("Switched to PlayAI for conversation");
@@ -144,7 +146,51 @@ export function useChat() {
       return;
     }
     
-    // If this is a retry, don't add a new user message
+    if (userInput.toLowerCase().includes("use exa search") || userInput.toLowerCase().includes("switch to exa")) {
+      updateUserPreferences({ preferredSearchProvider: "exa" });
+      toast.success("Switched to Exa for web searches");
+      
+      const systemMessage: Message = {
+        id: crypto.randomUUID(),
+        type: "system",
+        content: "Switched to Exa for web searches",
+        timestamp: Date.now(),
+      };
+      
+      setMessages(prev => [...prev, systemMessage]);
+      return;
+    }
+    
+    if (userInput.toLowerCase().includes("use searxng search") || userInput.toLowerCase().includes("switch to searxng")) {
+      updateUserPreferences({ preferredSearchProvider: "searxng" });
+      toast.success("Switched to SearXNG for web searches");
+      
+      const systemMessage: Message = {
+        id: crypto.randomUUID(),
+        type: "system",
+        content: "Switched to SearXNG for web searches",
+        timestamp: Date.now(),
+      };
+      
+      setMessages(prev => [...prev, systemMessage]);
+      return;
+    }
+    
+    if (userInput.toLowerCase().includes("use combined search") || userInput.toLowerCase().includes("use both search")) {
+      updateUserPreferences({ preferredSearchProvider: "combined" });
+      toast.success("Using combined search (Exa + SearXNG)");
+      
+      const systemMessage: Message = {
+        id: crypto.randomUUID(),
+        type: "system",
+        content: "Using combined search (Exa + SearXNG) for web searches",
+        timestamp: Date.now(),
+      };
+      
+      setMessages(prev => [...prev, systemMessage]);
+      return;
+    }
+    
     if (!isRetry) {
       const newUserMessage: Message = {
         id: crypto.randomUUID(),
@@ -155,26 +201,23 @@ export function useChat() {
       
       setMessages(prev => [...prev, newUserMessage]);
       
-      // Learn from user interaction
       learnFromUserInteraction(userInput);
     }
     
     setIsLoading(true);
     
     try {
-      // Prepare query with potential context
       const query: UserQuery = { 
         query: userInput,
-        usePlayAI: usePlayAI
+        usePlayAI: usePlayAI,
+        searchProvider: userPreferences.preferredSearchProvider
       };
       
-      // Check for stock/finance related queries
       if (userInput.toLowerCase().includes("stock") || 
           userInput.toLowerCase().includes("market") || 
           userInput.toLowerCase().includes("finance") ||
           userInput.toLowerCase().includes("invest")) {
         
-        // Extract potential symbol
         const symbolMatch = userInput.match(/stock (?:of|for|price|quote) ([A-Za-z]+)/i) || 
                            userInput.match(/([A-Za-z]{1,5}) stock/i);
         
@@ -190,7 +233,6 @@ export function useChat() {
             console.error("Error fetching stock data:", error);
           }
         } else {
-          // Try to find company by name
           const companyMatch = userInput.match(/(?:about|for|of) ([A-Za-z\s]+?)(?:\'s)? stock/i);
           if (companyMatch && companyMatch[1]) {
             const companyName = companyMatch[1].trim();
@@ -214,7 +256,6 @@ export function useChat() {
         }
       }
       
-      // Check for web search queries
       if (userInput.toLowerCase().includes("search") || 
           userInput.toLowerCase().includes("find") || 
           userInput.toLowerCase().includes("look up") ||
@@ -222,16 +263,29 @@ export function useChat() {
           userInput.toLowerCase().startsWith("who is") ||
           userInput.toLowerCase().startsWith("how to")) {
         
-        // Extract search term
         let searchTerm = userInput;
         searchTerm = searchTerm.replace(/^(search for|search|find|look up|tell me about)/i, '').trim();
         
         if (searchTerm) {
           try {
-            const searchResults = await searchWeb(searchTerm);
+            let searchResults;
+            const searchProvider = userPreferences.preferredSearchProvider;
+            
+            if (searchProvider === "exa") {
+              searchResults = await searchWithExaOnly(searchTerm);
+            } else if (searchProvider === "searxng") {
+              searchResults = await searchWithSearXNGOnly(searchTerm);
+            } else {
+              searchResults = await searchWeb(searchTerm);
+            }
+            
             if (searchResults && searchResults.length > 0) {
               query.source = "search";
-              query.context = { results: searchResults.slice(0, 5), query: searchTerm };
+              query.context = { 
+                results: searchResults.slice(0, 5), 
+                query: searchTerm,
+                provider: searchProvider
+              };
             }
           } catch (error) {
             console.error("Error searching the web:", error);
@@ -239,12 +293,10 @@ export function useChat() {
         }
       }
       
-      // Check if the query is related to weather
       if (userInput.toLowerCase().includes("weather") || 
           userInput.toLowerCase().includes("temperature") || 
           userInput.toLowerCase().includes("forecast")) {
         
-        // Try to extract location from query, otherwise use user's default location
         let location = userPreferences.defaultLocation;
         const locationMatch = userInput.match(/weather (?:in|at|for) ([a-zA-Z\s,]+)/i);
         if (locationMatch && locationMatch[1]) {
@@ -260,12 +312,10 @@ export function useChat() {
         }
       }
       
-      // Check if the query is related to news
       if (userInput.toLowerCase().includes("news") || 
           userInput.toLowerCase().includes("headlines") || 
           userInput.toLowerCase().includes("current events")) {
         
-        // Try to extract topic from query, otherwise use a preferred topic
         let topic = userPreferences.preferredTopics[0] || "latest";
         const topicMatch = userInput.match(/news (?:about|on) ([a-zA-Z\s,]+)/i);
         if (topicMatch && topicMatch[1]) {
@@ -281,7 +331,6 @@ export function useChat() {
         }
       }
       
-      // Check if the query is related to calendar
       if (userInput.toLowerCase().includes("calendar") || 
           userInput.toLowerCase().includes("schedule") || 
           userInput.toLowerCase().includes("event")) {
@@ -289,7 +338,6 @@ export function useChat() {
         query.context = getUpcomingEvents(10);
       }
       
-      // Check if the query is related to bookmarks
       if (userInput.toLowerCase().includes("bookmark") || 
           userInput.toLowerCase().includes("website") || 
           userInput.toLowerCase().includes("link")) {
@@ -299,7 +347,6 @@ export function useChat() {
       
       const aiResponse = await queryGemini(query);
       
-      // Handle any commands in the response
       const finalResponseText = await handleCommand(aiResponse);
       
       const assistantMessage: Message = {
@@ -310,7 +357,6 @@ export function useChat() {
         source: query.source,
       };
       
-      // If it's a retry, replace the last assistant message
       if (isRetry) {
         setMessages(prev => {
           const newMessages = [...prev];
@@ -326,20 +372,16 @@ export function useChat() {
         setMessages(prev => [...prev, assistantMessage]);
       }
       
-      // Reset retry count on successful message
       setRetryCount(0);
     } catch (error) {
       console.error("Error sending message:", error);
       
-      // If error message contains "retry", add an error message and option to retry
       const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
       
-      // Only increment retry count if this wasn't already a retry
       if (!isRetry) {
         setRetryCount(prev => prev + 1);
       }
       
-      // If we've tried too many times, show a more detailed error
       if (retryCount >= 2) {
         toast.error("Multiple failures encountered. Please check your API keys in Settings.");
       } else {
