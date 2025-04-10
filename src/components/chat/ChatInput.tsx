@@ -1,11 +1,12 @@
 
 import { useState, useRef, useEffect } from "react";
-import { Send, Mic, MicOff, Loader, Search, BarChart3, CloudSun, Bookmark, Calendar } from "lucide-react";
+import { Send, Mic, MicOff, Loader, Search, BarChart3, CloudSun, Bookmark, Calendar, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 
 interface ChatInputProps {
   onSendMessage: (message: string) => Promise<void>;
@@ -16,7 +17,16 @@ export function ChatInput({ onSendMessage, isLoading }: ChatInputProps) {
   const [userInput, setUserInput] = useState("");
   const [isListening, setIsListening] = useState(false);
   const [suggestions, setSuggestions] = useState<string[]>([]);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const recognition = useRef<SpeechRecognition | null>(null);
+
+  // Auto resize textarea based on content
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+    }
+  }, [userInput]);
 
   // Generate relevant suggestions based on time of day
   useEffect(() => {
@@ -33,9 +43,6 @@ export function ChatInput({ onSendMessage, isLoading }: ChatInputProps) {
       newSuggestions.push("Search for dinner recipes");
       newSuggestions.push("Add an event for tomorrow");
     }
-    
-    // Add a couple command examples
-    newSuggestions.push("Use Exa search");
     
     setSuggestions(newSuggestions);
   }, []);
@@ -97,6 +104,10 @@ export function ChatInput({ onSendMessage, isLoading }: ChatInputProps) {
     const message = userInput;
     setUserInput("");
     
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+    }
+    
     await onSendMessage(message);
   };
 
@@ -115,44 +126,21 @@ export function ChatInput({ onSendMessage, isLoading }: ChatInputProps) {
     const lowerSuggestion = suggestion.toLowerCase();
     if (lowerSuggestion.includes("weather")) return <CloudSun size={14} />;
     if (lowerSuggestion.includes("stock")) return <BarChart3 size={14} />;
-    if (lowerSuggestion.includes("search") || lowerSuggestion.includes("exa")) return <Search size={14} />;
+    if (lowerSuggestion.includes("search")) return <Search size={14} />;
     if (lowerSuggestion.includes("bookmark")) return <Bookmark size={14} />;
     if (lowerSuggestion.includes("event")) return <Calendar size={14} />;
-    return null;
+    return <Sparkles size={14} className="text-primary" />;
   };
 
   const commands = [
-    { text: "Use Exa search", icon: <Search size={12} className="text-blue-500" /> },
-    { text: "Use SearXNG search", icon: <Search size={12} className="text-orange-500" /> },
-    { text: "Add a bookmark", icon: <Bookmark size={12} /> },
-    { text: "Add an event", icon: <Calendar size={12} /> },
+    { text: "Search for information", icon: <Search size={12} className="text-blue-500" /> },
+    { text: "Add a bookmark", icon: <Bookmark size={12} className="text-orange-500" /> },
+    { text: "Add an event", icon: <Calendar size={12} className="text-purple-500" /> },
+    { text: "Check stock prices", icon: <BarChart3 size={12} className="text-green-500" /> },
   ];
 
   return (
-    <div className="p-3 border-t border-border/30">
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <div className="flex flex-wrap gap-2 mb-2">
-              {commands.map((cmd, index) => (
-                <Badge 
-                  key={index} 
-                  variant="outline" 
-                  className="cursor-pointer hover:bg-secondary/80 transition-colors flex items-center gap-1"
-                  onClick={() => handleSuggestionClick(cmd.text)}
-                >
-                  {cmd.icon}
-                  {cmd.text}
-                </Badge>
-              ))}
-            </div>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p className="text-xs">Click to use these commands</p>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-      
+    <div className="p-3 border-t border-border/30 bg-gradient-to-r from-background/80 to-muted/30">
       {suggestions.length > 0 && (
         <div className="flex overflow-x-auto scrollbar-none gap-2 mb-3 pb-1">
           {suggestions.map((suggestion, index) => (
@@ -171,17 +159,18 @@ export function ChatInput({ onSendMessage, isLoading }: ChatInputProps) {
       
       <div className="flex items-end gap-2">
         <Textarea
+          ref={textareaRef}
           value={userInput}
           onChange={(e) => setUserInput(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="Type a message or command..."
-          className="min-h-12 glassmorphism resize-none"
+          className="min-h-12 glassmorphism resize-none bg-background/70 backdrop-blur-sm border-border/50 transition-all focus-visible:ring-primary/40"
           rows={1}
         />
         <Button 
           variant="outline" 
           size="icon" 
-          className="h-12 w-12"
+          className="h-12 w-12 bg-background/70 backdrop-blur-sm border-border/50 transition-colors hover:bg-primary/10"
           onClick={toggleSpeechRecognition}
         >
           {isListening ? (
@@ -191,7 +180,7 @@ export function ChatInput({ onSendMessage, isLoading }: ChatInputProps) {
           )}
         </Button>
         <Button 
-          className="h-12 w-12"
+          className="h-12 w-12 bg-primary"
           size="icon"
           disabled={isLoading || !userInput.trim()}
           onClick={handleSendMessage}
@@ -204,8 +193,8 @@ export function ChatInput({ onSendMessage, isLoading }: ChatInputProps) {
         </Button>
       </div>
       {isListening && (
-        <div className="text-xs text-primary animate-pulse mt-2">
-          Listening... (speak clearly)
+        <div className="text-xs text-primary animate-pulse mt-2 flex items-center gap-1">
+          <Mic size={12} /> Listening... (speak clearly)
         </div>
       )}
     </div>

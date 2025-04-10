@@ -67,4 +67,5 @@ export async function handleAICommand(response: AiResponse): Promise<string> {
 }
 
 // Re-export types and main functions
-export { UserQuery, AiResponse, executeCommand };
+export { executeCommand };
+export type { UserQuery, AiResponse };

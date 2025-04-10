@@ -4,7 +4,7 @@ import { ChatInterface } from "@/components/chat/ChatInterface";
 import { getUpcomingEvents } from "@/services/calendar-service";
 import { getBookmarks } from "@/services/bookmarks-service";
 import { getStockQuote } from "@/services/alphavantage-service";
-import { Calendar, Bookmark, BarChart3, Search, CloudSun } from "lucide-react";
+import { Calendar, Bookmark, BarChart3, Search, CloudSun, Sparkles } from "lucide-react";
 import { format } from "date-fns";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useState, useEffect } from "react";
@@ -34,26 +34,34 @@ const Index = () => {
   }, []);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 animate-fade-in">
       <section className="mb-8">
-        <h1 className="text-3xl font-bold animate-fade-in">Hello there</h1>
-        <p className="text-muted-foreground animate-fade-in delay-75">
-          Your AI assistant with enhanced capabilities - what can I help you with today?
-        </p>
+        <div className="flex items-center gap-3 mb-3">
+          <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
+            <Sparkles size={20} className="text-primary" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-bold">AI Assistant</h1>
+            <p className="text-muted-foreground">
+              Your intelligent companion with enhanced capabilities
+            </p>
+          </div>
+        </div>
+        
         <div className="flex flex-wrap gap-2 mt-3">
-          <Badge variant="outline" className="flex items-center gap-1">
+          <Badge variant="outline" className="flex items-center gap-1 py-1.5 px-3 bg-yellow-500/10 text-yellow-500 border-yellow-500/30">
             <CloudSun size={14} className="text-yellow-500" /> Weather
           </Badge>
-          <Badge variant="outline" className="flex items-center gap-1">
+          <Badge variant="outline" className="flex items-center gap-1 py-1.5 px-3 bg-green-500/10 text-green-500 border-green-500/30">
             <BarChart3 size={14} className="text-green-500" /> Stocks
           </Badge>
-          <Badge variant="outline" className="flex items-center gap-1">
+          <Badge variant="outline" className="flex items-center gap-1 py-1.5 px-3 bg-blue-500/10 text-blue-500 border-blue-500/30">
             <Search size={14} className="text-blue-500" /> Web Search
           </Badge>
-          <Badge variant="outline" className="flex items-center gap-1">
+          <Badge variant="outline" className="flex items-center gap-1 py-1.5 px-3 bg-purple-500/10 text-purple-500 border-purple-500/30">
             <Calendar size={14} className="text-purple-500" /> Calendar
           </Badge>
-          <Badge variant="outline" className="flex items-center gap-1">
+          <Badge variant="outline" className="flex items-center gap-1 py-1.5 px-3 bg-orange-500/10 text-orange-500 border-orange-500/30">
             <Bookmark size={14} className="text-orange-500" /> Bookmarks
           </Badge>
         </div>
@@ -65,10 +73,10 @@ const Index = () => {
         </div>
 
         <div className="space-y-6">
-          <CardGlass variant="accent" hover="lift">
-            <CardGlassHeader>
-              <CardGlassTitle className="flex items-center gap-2">
-                <Calendar size={18} />
+          <CardGlass variant="accent" hover="lift" className="border border-muted/30 bg-card/50 backdrop-blur-sm">
+            <CardGlassHeader className="bg-gradient-to-r from-purple-500/10 to-purple-500/5 border-b border-purple-500/20">
+              <CardGlassTitle className="flex items-center gap-2 text-purple-500">
+                <Calendar size={18} className="text-purple-500" />
                 Upcoming Events
               </CardGlassTitle>
             </CardGlassHeader>
@@ -76,7 +84,7 @@ const Index = () => {
               {upcomingEvents.length > 0 ? (
                 <ul className="space-y-3">
                   {upcomingEvents.map((event) => (
-                    <li key={event.id} className="flex flex-col">
+                    <li key={event.id} className="flex flex-col p-2 rounded-md hover:bg-muted/30 transition-colors">
                       <span className="font-medium">{event.title}</span>
                       <span className="text-xs text-muted-foreground">
                         {format(new Date(event.start), "PPP 'at' p")}
@@ -90,10 +98,10 @@ const Index = () => {
             </CardGlassContent>
           </CardGlass>
 
-          <CardGlass variant="default" hover="lift">
-            <CardGlassHeader>
-              <CardGlassTitle className="flex items-center gap-2">
-                <BarChart3 size={18} />
+          <CardGlass variant="default" hover="lift" className="border border-muted/30 bg-card/50 backdrop-blur-sm">
+            <CardGlassHeader className="bg-gradient-to-r from-green-500/10 to-green-500/5 border-b border-green-500/20">
+              <CardGlassTitle className="flex items-center gap-2 text-green-500">
+                <BarChart3 size={18} className="text-green-500" />
                 Stock Market
               </CardGlassTitle>
             </CardGlassHeader>
@@ -127,10 +135,10 @@ const Index = () => {
             </CardGlassContent>
           </CardGlass>
 
-          <CardGlass variant="default" hover="lift">
-            <CardGlassHeader>
-              <CardGlassTitle className="flex items-center gap-2">
-                <Bookmark size={18} />
+          <CardGlass variant="default" hover="lift" className="border border-muted/30 bg-card/50 backdrop-blur-sm">
+            <CardGlassHeader className="bg-gradient-to-r from-orange-500/10 to-orange-500/5 border-b border-orange-500/20">
+              <CardGlassTitle className="flex items-center gap-2 text-orange-500">
+                <Bookmark size={18} className="text-orange-500" />
                 Recent Bookmarks
               </CardGlassTitle>
             </CardGlassHeader>
@@ -138,7 +146,7 @@ const Index = () => {
               {recentBookmarks.length > 0 ? (
                 <ul className="space-y-3">
                   {recentBookmarks.map((bookmark) => (
-                    <li key={bookmark.id} className="flex flex-col">
+                    <li key={bookmark.id} className="flex flex-col p-2 rounded-md hover:bg-muted/30 transition-colors">
                       <a 
                         href={bookmark.url} 
                         target="_blank" 
