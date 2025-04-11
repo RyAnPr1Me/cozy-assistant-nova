@@ -2,7 +2,7 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { formatDistanceToNow } from "date-fns";
 import Markdown from "react-markdown";
-import { AlertTriangle, Atom, Check, Command, User, Search, BarChart3, CloudSun, Bookmark, Calendar } from "lucide-react";
+import { AlertTriangle, Atom, Check, Command, User, Search, BarChart3, CloudSun, Bookmark, Calendar, Cpu, Code, FileCode, BrainCog } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
@@ -42,6 +42,10 @@ export function ChatMessage({ id, type, content, timestamp, error, source }: Cha
         return <Calendar size={14} className="text-purple-400" />;
       case "bookmarks":
         return <Bookmark size={14} className="text-orange-400" />;
+      case "code":
+        return <FileCode size={14} className="text-cyan-400" />;
+      case "data":
+        return <BrainCog size={14} className="text-indigo-400" />;
       default:
         return null;
     }

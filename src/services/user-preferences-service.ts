@@ -1,6 +1,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { Json } from "@/integrations/supabase/types";
 
 export interface UserPreference {
   id: string;
@@ -102,6 +103,12 @@ export async function logAIInteraction(
       return;
     }
     
+    // Convert LearnedPreference[] to Json compatible format
+    const preferencesJson = learnedPreferences ? learnedPreferences.map(pref => ({
+      type: pref.type,
+      value: pref.value
+    })) : null;
+    
     // Log the interaction
     await supabase
       .from('ai_interactions')
@@ -110,7 +117,7 @@ export async function logAIInteraction(
         query,
         response,
         provider,
-        learned_preferences: learnedPreferences || null
+        learned_preferences: preferencesJson as Json
       });
     
     // Update user preferences if we learned something new
