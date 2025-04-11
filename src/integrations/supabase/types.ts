@@ -9,6 +9,36 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      ai_interactions: {
+        Row: {
+          created_at: string | null
+          id: string
+          learned_preferences: Json | null
+          provider: string
+          query: string
+          response: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          learned_preferences?: Json | null
+          provider: string
+          query: string
+          response: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          learned_preferences?: Json | null
+          provider?: string
+          query?: string
+          response?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       AIUsage: {
         Row: {
           error: string | null
@@ -311,6 +341,39 @@ export type Database = {
           id?: string
           lastSearchReset?: string
           searchCount?: number
+        }
+        Relationships: []
+      }
+      user_preferences: {
+        Row: {
+          ai_provider: string | null
+          created_at: string | null
+          id: string
+          location: string | null
+          search_provider: string | null
+          topics: Json | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          ai_provider?: string | null
+          created_at?: string | null
+          id?: string
+          location?: string | null
+          search_provider?: string | null
+          topics?: Json | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          ai_provider?: string | null
+          created_at?: string | null
+          id?: string
+          location?: string | null
+          search_provider?: string | null
+          topics?: Json | null
+          updated_at?: string | null
+          user_id?: string | null
         }
         Relationships: []
       }

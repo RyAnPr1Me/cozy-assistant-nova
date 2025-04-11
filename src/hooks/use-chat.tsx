@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { getUpcomingEvents } from "@/services/calendar-service";
@@ -8,6 +9,13 @@ import { getStockQuote, searchCompanies } from "@/services/alphavantage-service"
 import { searchWeb, searchWithExaOnly, searchWithSearXNGOnly } from "@/services/searxng-service";
 import { queryAI, UserQuery, executeCommand, AiResponse, handleAICommand } from "@/services/ai";
 import { determineSearchProvider } from "@/services/ai/context-analyzer";
+import { 
+  getUserPreferences,
+  extractPreferencesFromInput,
+  logAIInteraction,
+  LearnedPreference
+} from "@/services/user-preferences-service";
+import { supabase } from "@/integrations/supabase/client";
 
 export interface Message {
   id: string;
@@ -24,30 +32,78 @@ export function useChat() {
   const [retryCount, setRetryCount] = useState(0);
   const [usePlayAI, setUsePlayAI] = useState(false);
   const [userPreferences, setUserPreferences] = useState({
-    defaultLocation: "New York",
+    defaultLocation: "",
     preferredTopics: [] as string[],
     searchLearningEnabled: true
   });
+  const [user, setUser] = useState<any>(null);
 
+  // Check for active session and load user
   useEffect(() => {
-    const savedPreferences = localStorage.getItem("user-preferences");
-    if (savedPreferences) {
-      try {
-        setUserPreferences(JSON.parse(savedPreferences));
-      } catch (error) {
-        console.error("Error parsing user preferences:", error);
+    const getSession = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (data.session?.user) {
+        setUser(data.session.user);
       }
-    }
+    };
+    
+    getSession();
+    
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user || null);
+    });
+    
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
   }, []);
 
-  const updateUserPreferences = (newPreferences: Partial<typeof userPreferences>) => {
+  // Load preferences from Supabase
+  useEffect(() => {
+    const loadPreferences = async () => {
+      if (user) {
+        const prefs = await getUserPreferences();
+        if (prefs) {
+          setUserPreferences({
+            defaultLocation: prefs.location || "",
+            preferredTopics: prefs.topics || [],
+            searchLearningEnabled: true
+          });
+          
+          // If user has an AI provider preference, set it
+          if (prefs.ai_provider === 'playai') {
+            setUsePlayAI(true);
+          } else if (prefs.ai_provider === 'gemini') {
+            setUsePlayAI(false);
+          }
+        }
+      } else {
+        // Fall back to localStorage for non-authenticated users
+        const savedPreferences = localStorage.getItem("user-preferences");
+        if (savedPreferences) {
+          try {
+            setUserPreferences(JSON.parse(savedPreferences));
+          } catch (error) {
+            console.error("Error parsing user preferences:", error);
+          }
+        }
+      }
+    };
+    
+    loadPreferences();
+  }, [user]);
+
+  const updateUserPreferences = async (newPreferences: Partial<typeof userPreferences>) => {
     const updatedPreferences = { ...userPreferences, ...newPreferences };
     setUserPreferences(updatedPreferences);
+    
+    // Store in localStorage as fallback
     localStorage.setItem("user-preferences", JSON.stringify(updatedPreferences));
+    
     return updatedPreferences;
   };
 
-  const toggleAIProvider = () => {
+  const toggleAIProvider = async () => {
     const newValue = !usePlayAI;
     setUsePlayAI(newValue);
     toast.info(`Switched to ${newValue ? "PlayAI" : "Gemini"} as the AI provider`);
@@ -62,23 +118,31 @@ export function useChat() {
     await sendMessage(lastUserMessage.content, true);
   };
 
-  const learnFromUserInteraction = (userInput: string) => {
-    const locationMatch = userInput.match(/(?:i am|i'm|i live) in ([a-zA-Z\s,]+)/i);
-    if (locationMatch && locationMatch[1]) {
-      const location = locationMatch[1].trim();
-      updateUserPreferences({ defaultLocation: location });
-      console.log(`Updated default location to: ${location}`);
-    }
+  const learnFromUserInteraction = async (userInput: string): Promise<LearnedPreference[]> => {
+    if (!user) return []; // Only learn if user is authenticated
     
-    const topicMatch = userInput.match(/(?:i like|i'm interested in|tell me about) ([a-zA-Z\s,]+)/i);
-    if (topicMatch && topicMatch[1]) {
-      const topic = topicMatch[1].trim().toLowerCase();
-      if (!userPreferences.preferredTopics.includes(topic)) {
-        const updatedTopics = [...userPreferences.preferredTopics, topic];
-        updateUserPreferences({ preferredTopics: updatedTopics });
-        console.log(`Added preferred topic: ${topic}`);
+    const learnedPreferences = extractPreferencesFromInput(userInput);
+    
+    // Update local state based on preferences
+    if (learnedPreferences.length > 0) {
+      const updates: Partial<typeof userPreferences> = {};
+      
+      for (const pref of learnedPreferences) {
+        if (pref.type === 'location') {
+          updates.defaultLocation = pref.value;
+        } else if (pref.type === 'topic') {
+          if (!userPreferences.preferredTopics.includes(pref.value)) {
+            updates.preferredTopics = [...userPreferences.preferredTopics, pref.value];
+          }
+        }
+      }
+      
+      if (Object.keys(updates).length > 0) {
+        updateUserPreferences(updates);
       }
     }
+    
+    return learnedPreferences;
   };
 
   const sendMessage = async (userInput: string, isRetry = false) => {
@@ -124,7 +188,8 @@ export function useChat() {
       
       setMessages(prev => [...prev, newUserMessage]);
       
-      learnFromUserInteraction(userInput);
+      // Learn from user interaction
+      await learnFromUserInteraction(userInput);
     }
     
     setIsLoading(true);
@@ -133,7 +198,8 @@ export function useChat() {
       const query: UserQuery = { 
         query: userInput,
         usePlayAI: usePlayAI,
-        searchProvider: determineSearchProvider(userInput)
+        searchProvider: determineSearchProvider(userInput),
+        location: userPreferences.defaultLocation || undefined
       };
       
       const aiResponse = await queryAI(query);
@@ -161,6 +227,17 @@ export function useChat() {
         });
       } else {
         setMessages(prev => [...prev, assistantMessage]);
+      }
+      
+      // Log the interaction to Supabase if user is authenticated
+      if (user) {
+        const learnedPreferences = await learnFromUserInteraction(userInput);
+        await logAIInteraction(
+          userInput,
+          finalResponseText,
+          usePlayAI ? 'playai' : 'gemini',
+          learnedPreferences
+        );
       }
       
       setRetryCount(0);
@@ -200,6 +277,7 @@ export function useChat() {
     retryLastMessage,
     toggleAIProvider,
     isUsingPlayAI: usePlayAI,
-    userPreferences
+    userPreferences,
+    isAuthenticated: !!user
   };
 }

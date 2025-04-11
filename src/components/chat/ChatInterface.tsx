@@ -4,10 +4,11 @@ import { ChatMessage } from "./ChatMessage";
 import { ChatInput } from "./ChatInput";
 import { EmptyChat } from "./EmptyChat";
 import { useChat } from "@/hooks/use-chat";
-import { RefreshCw, Sparkles } from "lucide-react";
+import { RefreshCw, Sparkles, Settings, User, Database } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { Link } from "react-router-dom";
 
 export function ChatInterface() {
   const { 
@@ -16,7 +17,8 @@ export function ChatInterface() {
     sendMessage, 
     retryLastMessage,
     isUsingPlayAI,
-    userPreferences 
+    userPreferences,
+    isAuthenticated
   } = useChat();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -48,6 +50,25 @@ export function ChatInterface() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {isAuthenticated ? (
+            <Badge 
+              variant="outline"
+              className="bg-green-500/10 text-green-500 border-green-500/30 flex items-center gap-1"
+            >
+              <Database size={12} />
+              <span className="text-xs">Personalized</span>
+            </Badge>
+          ) : (
+            <Link to="/settings">
+              <Badge 
+                variant="outline"
+                className="bg-yellow-500/10 text-yellow-500 border-yellow-500/30 flex items-center gap-1 cursor-pointer"
+              >
+                <User size={12} />
+                <span className="text-xs">Sign in for personalization</span>
+              </Badge>
+            </Link>
+          )}
           <Badge 
             variant="outline"
             className={cn(
@@ -57,6 +78,11 @@ export function ChatInterface() {
           >
             {isUsingPlayAI ? "PlayAI" : "Gemini"} 
           </Badge>
+          <Link to="/settings">
+            <Button size="icon" variant="ghost" className="h-8 w-8">
+              <Settings size={16} />
+            </Button>
+          </Link>
         </div>
       </div>
       

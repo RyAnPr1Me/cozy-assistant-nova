@@ -1,21 +1,38 @@
 
 import { UserQuery } from "./types";
 
+interface UserContext {
+  location: string | null;
+  topics: string[] | null;
+}
+
 /**
  * Builds context-aware prompts for the AI model based on query source
  */
-export function buildPrompt(query: UserQuery): string {
+export function buildPrompt(query: UserQuery, userContext?: UserContext | null): string {
   const { query: userInput, source, context } = query;
+  
+  // Add user context to any prompt
+  let userContextPrefix = "";
+  if (userContext) {
+    if (userContext.location) {
+      userContextPrefix += `[USER CONTEXT: User is located in or interested in ${userContext.location}] `;
+    }
+    
+    if (userContext.topics && userContext.topics.length > 0) {
+      userContextPrefix += `[USER INTERESTS: ${userContext.topics.join(', ')}] `;
+    }
+  }
   
   // Default to user's query if no special source
   if (!source || source === "general") {
-    return userInput;
+    return userContextPrefix + userInput;
   }
   
   // Build specialized prompts based on the source
   switch (source) {
     case "calendar":
-      return `[CONTEXT: The user is asking about their calendar or wants to modify calendar events. Calendar context: ${JSON.stringify(context)}]
+      return `${userContextPrefix}[CONTEXT: The user is asking about their calendar or wants to modify calendar events. Calendar context: ${JSON.stringify(context)}]
 
 You can create, update, or delete calendar events by returning a command in your response.
 
@@ -34,7 +51,7 @@ Respond in a helpful, conversational way. If you're executing a command, explain
 Please include all necessary details in your command, including timestamps for the event. For calendar events, convert date strings to timestamps in milliseconds.`;
 
     case "bookmarks":
-      return `[CONTEXT: The user is asking about their bookmarks or wants to modify bookmarks. Bookmark context: ${JSON.stringify(context)}]
+      return `${userContextPrefix}[CONTEXT: The user is asking about their bookmarks or wants to modify bookmarks. Bookmark context: ${JSON.stringify(context)}]
 
 You can create, update, or delete bookmarks by returning a command in your response.
 
@@ -52,16 +69,16 @@ User query: ${userInput}
 Respond in a helpful, conversational way. If you're executing a command, explain what you're doing.`;
 
     case "weather":
-      return `[CONTEXT: The user is asking about weather. Weather data: ${JSON.stringify(context)}]\n\nUser query: ${userInput}`;
+      return `${userContextPrefix}[CONTEXT: The user is asking about weather. Weather data: ${JSON.stringify(context)}]\n\nUser query: ${userInput}`;
 
     case "spotify":
-      return `[CONTEXT: The user is asking about music. Spotify results: ${JSON.stringify(context)}]\n\nUser query: ${userInput}`;
+      return `${userContextPrefix}[CONTEXT: The user is asking about music. Spotify results: ${JSON.stringify(context)}]\n\nUser query: ${userInput}`;
 
     case "news":
-      return `[CONTEXT: The user is asking about news. News results: ${JSON.stringify(context)}]\n\nUser query: ${userInput}. Please summarize the main points from these news articles and provide insights. Include sources when relevant.`;
+      return `${userContextPrefix}[CONTEXT: The user is asking about news. News results: ${JSON.stringify(context)}]\n\nUser query: ${userInput}. Please summarize the main points from these news articles and provide insights. Include sources when relevant.`;
 
     case "stocks":
-      return `[CONTEXT: The user is asking about stocks or financial information. Financial data: ${JSON.stringify(context)}]
+      return `${userContextPrefix}[CONTEXT: The user is asking about stocks or financial information. Financial data: ${JSON.stringify(context)}]
 
 You can search for stock information by returning a command in your response.
 
@@ -77,13 +94,13 @@ Respond in a helpful, conversational way. Provide a comprehensive analysis of th
                           context.provider === "searxng" ? "SearXNG search engine" : 
                           "combined web search engines";
       
-      return `[CONTEXT: The user is asking for web search results. I've used ${providerInfo} to find information about "${context.query}": ${JSON.stringify(context.results)}]
+      return `${userContextPrefix}[CONTEXT: The user is asking for web search results. I've used ${providerInfo} to find information about "${context.query}": ${JSON.stringify(context.results)}]
 
 User query: ${userInput}
 
 Respond in a helpful, conversational way. Use the search results to provide an informative answer. Cite sources when appropriate by including the website name in parentheses. If articles have publication dates or authors, consider mentioning that information to provide context about how recent the information is.`;
 
     default:
-      return userInput;
+      return userContextPrefix + userInput;
   }
 }

@@ -5,6 +5,7 @@ export interface UserQuery {
   context?: any;
   usePlayAI?: boolean;
   searchProvider?: "exa" | "searxng" | "combined";
+  location?: string;
 }
 
 export interface AiResponse {
