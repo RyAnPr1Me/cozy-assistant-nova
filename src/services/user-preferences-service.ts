@@ -33,6 +33,7 @@ export async function getUserPreferences(): Promise<UserPreference | null> {
     const { data, error } = await supabase
       .from('user_preferences')
       .select('*')
+      .eq('user_id', session.session.user.id)
       .maybeSingle();
     
     if (error) {
@@ -40,7 +41,7 @@ export async function getUserPreferences(): Promise<UserPreference | null> {
       return null;
     }
     
-    return data;
+    return data as UserPreference;
   } catch (error) {
     console.error("Error in getUserPreferences:", error);
     return null;
@@ -76,7 +77,7 @@ export async function updateUserPreferences(preferences: Partial<UserPreference>
     }
     
     toast.success("Preferences updated successfully");
-    return data;
+    return data as UserPreference;
   } catch (error) {
     console.error("Error in updateUserPreferences:", error);
     toast.error("An error occurred while updating preferences");
